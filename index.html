@@ -104,7 +104,16 @@
     display: flex; flex-direction: column; align-items: center; gap: 16px;
     z-index: 5;
   }
-  #filterRow { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  #filterRow, #themeRow { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+  .chip.tsel { border-color: var(--cyan); color: var(--cyan); font-weight: 700; }
+  .confetti {
+    position: fixed; top: -24px; width: 12px; height: 18px;
+    z-index: 30; pointer-events: none; border-radius: 3px;
+    animation: confettiFall linear forwards;
+  }
+  @keyframes confettiFall {
+    to { transform: translateY(112vh) rotate(720deg); opacity: 0.85; }
+  }
   .chip {
     background: rgba(0,0,0,0.45); backdrop-filter: blur(8px);
     border: 2px solid rgba(255,255,255,0.25);
@@ -225,6 +234,12 @@
   <div id="flash"></div>
 
   <div id="controls">
+    <div id="themeRow">
+      <button class="chip tsel" data-t="classic">🤍 Klassik</button>
+      <button class="chip" data-t="neon">💜 Neon</button>
+      <button class="chip" data-t="birthday">🎂 Geburtstag</button>
+      <button class="chip" data-t="wedding">💍 Hochzeit</button>
+    </div>
     <div id="filterRow">
       <button class="chip sel" data-f="f-none">Normal</button>
       <button class="chip" data-f="f-bw">Schwarz-Weiß</button>
@@ -347,8 +362,64 @@
     });
   });
 
+  // ---------- Themes (Motive fuer Rahmen & Streifen) ----------
+  var currentTheme = "classic";
+
+  function decoEmojis(ctx, W, H, set) {
+    var s = Math.round(W * 0.055);
+    ctx.save();
+    ctx.font = s + "px serif";
+    ctx.textAlign = "center";
+    var pos = [[0.06, 0.05], [0.94, 0.06], [0.05, 0.5], [0.95, 0.52],
+               [0.07, 0.96], [0.93, 0.95], [0.5, 0.035]];
+    pos.forEach(function (p, i) {
+      ctx.fillText(set[i % set.length], W * p[0], H * p[1]);
+    });
+    ctx.restore();
+  }
+
+  var THEMES = {
+    classic: {
+      singleBg: "#ffffff", singleText: "#333333", singleSub: "#999999",
+      grad: ["#f7f4ec", "#e9e2d2"], stripText: "#5a5245",
+      deco: null
+    },
+    neon: {
+      singleBg: "#0d0221", singleText: "#2dd9ff", singleSub: "#ff2d78",
+      grad: ["#0d0221", "#2a0a4a"], stripText: "#2dd9ff",
+      deco: function (ctx, W, H) {
+        ctx.save();
+        ctx.strokeStyle = "#ff2d78";
+        ctx.lineWidth = Math.max(4, W * 0.008);
+        ctx.shadowColor = "#ff2d78";
+        ctx.shadowBlur = W * 0.02;
+        ctx.strokeRect(W * 0.018, H * 0.012, W * 0.964, H * 0.976);
+        ctx.restore();
+      }
+    },
+    birthday: {
+      singleBg: "#fff8e7", singleText: "#d63384", singleSub: "#b8860b",
+      grad: ["#ffd52d", "#ff2d78"], stripText: "#ffffff",
+      deco: function (ctx, W, H) { decoEmojis(ctx, W, H, ["🎈", "🎉", "🎂", "🥳", "🎁"]); }
+    },
+    wedding: {
+      singleBg: "#fdfbf7", singleText: "#7a6a58", singleSub: "#b7a98f",
+      grad: ["#f6efe6", "#e3d5bd"], stripText: "#7a6a58",
+      deco: function (ctx, W, H) { decoEmojis(ctx, W, H, ["💍", "🤍", "🌿", "✨"]); }
+    }
+  };
+
+  var themeChips = document.querySelectorAll("#themeRow .chip");
+  themeChips.forEach(function (c) {
+    c.addEventListener("click", function () {
+      themeChips.forEach(function (x) { x.classList.remove("tsel"); });
+      c.classList.add("tsel");
+      currentTheme = c.getAttribute("data-t");
+    });
+  });
+
   // ---------- Filter ----------
-  var chips = document.querySelectorAll(".chip");
+  var chips = document.querySelectorAll("#filterRow .chip");
   chips.forEach(function (c) {
     c.addEventListener("click", function () {
       chips.forEach(function (x) { x.classList.remove("sel"); });
@@ -386,6 +457,21 @@
     var f = $("flash");
     f.classList.add("on");
     setTimeout(function () { f.classList.remove("on"); }, 120);
+    burstConfetti();
+  }
+
+  function burstConfetti() {
+    var colors = ["#ff2d78", "#7b2dff", "#2dd9ff", "#ffd52d", "#3aff8a"];
+    for (var i = 0; i < 50; i++) {
+      var d = document.createElement("div");
+      d.className = "confetti";
+      d.style.left = (Math.random() * 100) + "vw";
+      d.style.background = colors[i % colors.length];
+      d.style.animationDuration = (1.6 + Math.random() * 1.6) + "s";
+      d.style.animationDelay = (Math.random() * 0.3) + "s";
+      document.body.appendChild(d);
+      (function (el) { setTimeout(function () { el.remove(); }, 3800); })(d);
+    }
   }
 
   // Pixel-based filters (works on every browser, no ctx.filter needed)
@@ -429,7 +515,8 @@
   }
 
   function frameSingle(srcCanvas) {
-    // Polaroid-style frame with event name
+    // Polaroid-style frame, theme-aware
+    var t = THEMES[currentTheme];
     var w = srcCanvas.width, h = srcCanvas.height;
     var border = Math.round(w * 0.035);
     var bottom = Math.round(w * 0.14);
@@ -437,21 +524,23 @@
     c.width = w + border * 2;
     c.height = h + border + bottom;
     var ctx = c.getContext("2d");
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = t.singleBg;
     ctx.fillRect(0, 0, c.width, c.height);
     ctx.drawImage(srcCanvas, border, border);
-    ctx.fillStyle = "#333";
+    ctx.fillStyle = t.singleText;
     ctx.textAlign = "center";
     ctx.font = "bold " + Math.round(bottom * 0.42) + "px 'Segoe UI', sans-serif";
     ctx.fillText("✨ " + eventName() + " ✨", c.width / 2, h + border + bottom * 0.48);
-    ctx.fillStyle = "#999";
+    ctx.fillStyle = t.singleSub;
     ctx.font = Math.round(bottom * 0.24) + "px 'Segoe UI', sans-serif";
     ctx.fillText(new Date().toLocaleDateString("de-DE"), c.width / 2, h + border + bottom * 0.82);
+    if (t.deco) t.deco(ctx, c.width, c.height);
     return c;
   }
 
   function frameStrip(canvases) {
-    // classic vertical strip
+    // classic vertical strip, theme-aware
+    var t = THEMES[currentTheme];
     var w = canvases[0].width, h = canvases[0].height;
     var targetW = 900;
     var scale = targetW / w;
@@ -462,7 +551,7 @@
     c.height = pad + canvases.length * ph + (canvases.length - 1) * gap + header + pad;
     var ctx = c.getContext("2d");
     var grad = ctx.createLinearGradient(0, 0, c.width, c.height);
-    grad.addColorStop(0, "#ff2d78"); grad.addColorStop(1, "#7b2dff");
+    grad.addColorStop(0, t.grad[0]); grad.addColorStop(1, t.grad[1]);
     ctx.fillStyle = grad;
     ctx.fillRect(0, 0, c.width, c.height);
     canvases.forEach(function (pc, i) {
@@ -471,13 +560,14 @@
       ctx.fillRect(pad - 6, y - 6, pw + 12, ph + 12);
       ctx.drawImage(pc, pad, y, pw, ph);
     });
-    ctx.fillStyle = "#fff";
+    ctx.fillStyle = t.stripText;
     ctx.textAlign = "center";
     ctx.font = "bold 52px 'Segoe UI', sans-serif";
     var ty = c.height - pad - header * 0.42;
     ctx.fillText("✨ " + eventName() + " ✨", c.width / 2, ty);
     ctx.font = "30px 'Segoe UI', sans-serif";
     ctx.fillText(new Date().toLocaleDateString("de-DE"), c.width / 2, ty + 46);
+    if (t.deco) t.deco(ctx, c.width, c.height);
     return c;
   }
 
