@@ -145,8 +145,16 @@
     min-width: 24px; height: 24px; font-size: 0.8rem; font-weight: 700;
     display: flex; align-items: center; justify-content: center; padding: 0 6px;
   }
-  #modeHint { font-size: 0.9rem; color: rgba(255,255,255,0.85);
-    background: rgba(0,0,0,0.35); border-radius: 999px; padding: 6px 14px; }
+  #layoutRow { display: flex; gap: 10px; justify-content: center; }
+  .lay {
+    background: rgba(0,0,0,0.45); backdrop-filter: blur(8px);
+    border: 2px solid rgba(255,255,255,0.25); border-radius: 14px;
+    color: #fff; padding: 8px 14px 6px; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    font-size: 0.78rem;
+  }
+  .lay svg { opacity: 0.95; }
+  .lay.sel-l { border-color: var(--yellow); color: var(--yellow); }
 
   /* countdown + flash */
   #countdown {
@@ -246,9 +254,22 @@
       <button class="chip" data-f="f-sepia">Sepia</button>
       <button class="chip" data-f="f-vivid">Knallig</button>
     </div>
-    <div id="modeHint">Einzelfoto</div>
+    <div id="layoutRow">
+      <button class="lay sel-l" data-l="single" title="Quadratisches Polaroid, 1 Foto">
+        <svg viewBox="0 0 24 28" width="24" height="28"><rect x="1" y="1" width="22" height="26" rx="2" fill="#fff"/><rect x="3.5" y="3.5" width="17" height="17" fill="#8a8a8a"/></svg>
+        <span>Polaroid</span>
+      </button>
+      <button class="lay" data-l="strip" title="Klassischer Fotostreifen, 3 Fotos">
+        <svg viewBox="0 0 16 30" width="16" height="30"><rect x="1" y="0.5" width="14" height="29" rx="1.5" fill="#fff"/><rect x="2.8" y="2.5" width="10.4" height="7" fill="#8a8a8a"/><rect x="2.8" y="10.8" width="10.4" height="7" fill="#8a8a8a"/><rect x="2.8" y="19.1" width="10.4" height="7" fill="#8a8a8a"/></svg>
+        <span>Streifen</span>
+      </button>
+      <button class="lay" data-l="grid" title="Collage 2x2, 4 Fotos">
+        <svg viewBox="0 0 26 28" width="26" height="28"><rect x="1" y="1" width="24" height="26" rx="2" fill="#fff"/><rect x="3" y="3" width="9.5" height="9.5" fill="#8a8a8a"/><rect x="13.5" y="3" width="9.5" height="9.5" fill="#8a8a8a"/><rect x="3" y="13.5" width="9.5" height="9.5" fill="#8a8a8a"/><rect x="13.5" y="13.5" width="9.5" height="9.5" fill="#8a8a8a"/></svg>
+        <span>Collage 2×2</span>
+      </button>
+    </div>
     <div id="shutterRow">
-      <button class="sideBtn" id="modeBtn" title="Modus wechseln">🎞️</button>
+      <div style="width:62px"></div>
       <button id="shutter" title="Foto aufnehmen"></button>
       <button class="sideBtn" id="galleryBtn" title="Galerie">🖼️<span id="galleryCount">0</span></button>
     </div>
@@ -430,13 +451,16 @@
     });
   });
 
-  // ---------- Mode ----------
-  $("modeBtn").addEventListener("click", function () {
-    if (busy) return;
-    mode = mode === "single" ? "strip" : "single";
-    $("modeHint").textContent = mode === "single" ? "Einzelfoto" : "Fotostreifen (3 Bilder)";
-    $("shutter").classList.toggle("strip", mode === "strip");
-    $("modeBtn").textContent = mode === "single" ? "🎞️" : "📷";
+  // ---------- Layout-Auswahl ----------
+  var layBtns = document.querySelectorAll("#layoutRow .lay");
+  layBtns.forEach(function (b) {
+    b.addEventListener("click", function () {
+      if (busy) return;
+      layBtns.forEach(function (x) { x.classList.remove("sel-l"); });
+      b.classList.add("sel-l");
+      mode = b.getAttribute("data-l");
+      $("shutter").classList.toggle("strip", mode !== "single");
+    });
   });
 
   // ---------- Capture helpers ----------
@@ -499,18 +523,25 @@
     ctx.putImageData(img, 0, 0);
   }
 
-  function grabFrame() {
-    var w = video.videoWidth || 1280;
-    var h = video.videoHeight || 720;
+  function grabFrame(square) {
+    var vw = video.videoWidth || 1280;
+    var vh = video.videoHeight || 720;
+    var sx = 0, sy = 0, sw = vw, sh = vh;
+    if (square) {
+      var s = Math.min(vw, vh);
+      sx = Math.round((vw - s) / 2);
+      sy = Math.round((vh - s) / 2);
+      sw = sh = s;
+    }
     var c = document.createElement("canvas");
-    c.width = w; c.height = h;
+    c.width = sw; c.height = sh;
     var ctx = c.getContext("2d");
     if (facing === "user") { // mirror like preview
-      ctx.translate(w, 0); ctx.scale(-1, 1);
+      ctx.translate(sw, 0); ctx.scale(-1, 1);
     }
-    ctx.drawImage(video, 0, 0, w, h);
+    ctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    applyPixelFilter(ctx, w, h, currentFilter);
+    applyPixelFilter(ctx, sw, sh, currentFilter);
     return c;
   }
 
@@ -571,41 +602,68 @@
     return c;
   }
 
+  // ---------- 2x2-Collage ----------
+  function frameGrid(canvases) {
+    var t = THEMES[currentTheme];
+    var cell = 700, pad = 44, gap = 22, header = 130;
+    var c = document.createElement("canvas");
+    c.width = pad * 2 + cell * 2 + gap;
+    c.height = pad + cell * 2 + gap + header + Math.round(pad * 0.4);
+    var ctx = c.getContext("2d");
+    var grad = ctx.createLinearGradient(0, 0, c.width, c.height);
+    grad.addColorStop(0, t.grad[0]); grad.addColorStop(1, t.grad[1]);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, c.width, c.height);
+    var posn = [[pad, pad], [pad + cell + gap, pad],
+                [pad, pad + cell + gap], [pad + cell + gap, pad + cell + gap]];
+    canvases.forEach(function (pc, i) {
+      var x = posn[i][0], y = posn[i][1];
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(x - 7, y - 7, cell + 14, cell + 14);
+      ctx.drawImage(pc, x, y, cell, cell);
+    });
+    ctx.fillStyle = t.stripText;
+    ctx.textAlign = "center";
+    ctx.font = "bold 56px 'Segoe UI', sans-serif";
+    var ty = c.height - Math.round(pad * 0.4) - header * 0.45;
+    ctx.fillText("✨ " + eventName() + " ✨", c.width / 2, ty);
+    ctx.font = "32px 'Segoe UI', sans-serif";
+    ctx.fillText(new Date().toLocaleDateString("de-DE"), c.width / 2, ty + 50);
+    if (t.deco) t.deco(ctx, c.width, c.height);
+    return c;
+  }
+
   // ---------- Shutter ----------
   $("shutter").addEventListener("click", function () {
     if (busy || !stream) return;
     busy = true;
-    if (mode === "single") {
-      countdown(3).then(function () {
-        flash();
-        var framed = frameSingle(grabFrame());
-        openReview(framed.toDataURL("image/jpeg", 0.92));
-        busy = false;
-      });
-    } else {
-      var shots = [];
-      var prog = $("stripProgress");
-      function next(i) {
-        if (i > 3) {
-          prog.style.display = "none";
-          var framed = frameStrip(shots);
-          openReview(framed.toDataURL("image/jpeg", 0.92));
-          busy = false;
-          return;
-        }
-        prog.style.display = "block";
-        prog.textContent = "Foto " + i + " von 3";
-        setTimeout(function () {
-          prog.style.display = "none";
-          countdown(3).then(function () {
-            flash();
-            shots.push(grabFrame());
-            next(i + 1);
-          });
-        }, i === 1 ? 400 : 900);
-      }
-      next(1);
+    var square = (mode !== "strip");
+    var total = mode === "single" ? 1 : mode === "strip" ? 3 : 4;
+    var shots = [];
+    var prog = $("stripProgress");
+    function finish() {
+      var framed = mode === "single" ? frameSingle(shots[0])
+                 : mode === "strip"  ? frameStrip(shots)
+                 : frameGrid(shots);
+      openReview(framed.toDataURL("image/jpeg", 0.92));
+      busy = false;
     }
+    function next(i) {
+      if (i > total) { prog.style.display = "none"; finish(); return; }
+      if (total > 1) {
+        prog.style.display = "block";
+        prog.textContent = "Foto " + i + " von " + total;
+      }
+      setTimeout(function () {
+        prog.style.display = "none";
+        countdown(3).then(function () {
+          flash();
+          shots.push(grabFrame(square));
+          next(i + 1);
+        });
+      }, i === 1 ? 300 : 900);
+    }
+    next(1);
   });
 
   // ---------- Review ----------
