@@ -621,6 +621,25 @@
   $("galleryBtn").addEventListener("click", function () { renderGallery(); show("gallery"); });
   $("galleryBack").addEventListener("click", function () { show("cam"); });
 
+  // ---------- Remote trigger (Bluetooth-Fernausloeser / Tastatur / Pedal) ----------
+  // Jede Taste (Leertaste, Enter, Lautstaerke-Tasten im Android-Modus, Buchstaben)
+  // loest das Foto aus, solange die Kamera aktiv ist.
+  window.addEventListener("keydown", function (e) {
+    // Nicht ausloesen, wenn gerade ins Namensfeld getippt wird
+    if (document.activeElement && document.activeElement.tagName === "INPUT") return;
+    // Review offen: Taste = "Behalten"/"Schliessen", damit die Remote alles bedienen kann
+    if ($("review").classList.contains("active")) {
+      e.preventDefault();
+      $("keepBtn").click();
+      return;
+    }
+    // Kamera-Screen aktiv: Foto ausloesen
+    if (screens.cam.classList.contains("active") && !busy) {
+      e.preventDefault();
+      $("shutter").click();
+    }
+  });
+
   // Warn before closing the page (photos live only in memory)
   window.addEventListener("beforeunload", function (e) {
     if (photos.length) { e.preventDefault(); e.returnValue = ""; }
