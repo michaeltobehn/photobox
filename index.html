@@ -621,6 +621,15 @@
   $("galleryBtn").addEventListener("click", function () { renderGallery(); show("gallery"); });
   $("galleryBack").addEventListener("click", function () { show("cam"); });
 
+  // ---------- Touch trigger: Tipp auf die Bildflaeche loest aus ----------
+  // Funktioniert auch mit RF-Seitenwender-Clips (z. B. SYUKUYU), die physisch
+  // auf den Screen tippen. Buttons/Leisten liegen ausserhalb von #videoWrap.
+  $("videoWrap").addEventListener("click", function () {
+    if (screens.cam.classList.contains("active") && !busy && stream) {
+      $("shutter").click();
+    }
+  });
+
   // ---------- Remote trigger (Bluetooth-Fernausloeser / Tastatur / Pedal) ----------
   // Jede Taste (Leertaste, Enter, Lautstaerke-Tasten im Android-Modus, Buchstaben)
   // loest das Foto aus, solange die Kamera aktiv ist.
