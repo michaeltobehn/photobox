@@ -656,26 +656,56 @@
     return { ratio: 1, mask: null };   // single & grid: quadratisch
   }
 
+  function resetVideoBox() {
+    video.style.position = "";
+    video.style.width = ""; video.style.height = "";
+    video.style.left = ""; video.style.top = "";
+  }
+
   function updatePreviewFrame() {
     var el = $("previewFrame");
     var p = layoutPreview();
     if (!p || !stream || !screens.cam.classList.contains("active")) {
       el.style.display = "none";
+      resetVideoBox();
       return;
     }
     var wrap = $("videoWrap");
     var W = wrap.clientWidth, H = wrap.clientHeight;
     var vw = video.videoWidth || 1280, vh = video.videoHeight || 720;
-    var s = Math.max(W / vw, H / vh);
     var cw, ch;
     if (vw / vh > p.ratio) { ch = vh; cw = vh * p.ratio; }
     else { cw = vw; ch = vw / p.ratio; }
-    var w = cw * s, h = ch * s;
+    var x, y, w, h;
+    if (mode === "card" || mode === "card2") {
+      // Karten-Modus: Video so verkleinern, dass der komplette Ausschnitt
+      // (inkl. Masken-Deko unten) ZWISCHEN Top-Bar und Button-Leiste liegt —
+      // sonst verschwindet der untere Kartenrand hinter den Controls.
+      var topBar = $("topBar").getBoundingClientRect();
+      var controls = $("controls").getBoundingClientRect();
+      var availTop = topBar.bottom + 8;
+      var availH = Math.max(120, (controls.top - 8) - availTop);
+      var s2 = Math.min(availH / ch, W / cw);
+      w = cw * s2; h = ch * s2;
+      x = (W - w) / 2;
+      y = availTop + (availH - h) / 2;
+      video.style.position = "absolute";
+      video.style.width = Math.round(vw * s2) + "px";
+      video.style.height = Math.round(vh * s2) + "px";
+      video.style.left = Math.round((W - vw * s2) / 2) + "px";
+      video.style.top = Math.round(y + h / 2 - vh * s2 / 2) + "px";
+    } else {
+      resetVideoBox();
+      var s = Math.max(W / vw, H / vh);
+      w = cw * s; h = ch * s;
+      x = (W - w) / 2;
+      y = (H - h) / 2;
+    }
     el.style.display = "block";
     el.style.width = Math.round(w) + "px";
     el.style.height = Math.round(h) + "px";
-    el.style.left = Math.round((W - w) / 2) + "px";
-    el.style.top = Math.round((H - h) / 2) + "px";
+    el.style.left = Math.round(x) + "px";
+    el.style.top = Math.round(y) + "px";
     var mi = $("previewMask");
     if (p.mask) {
       if (mi.getAttribute("src") !== p.mask) mi.src = p.mask;
