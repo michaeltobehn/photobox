@@ -223,6 +223,62 @@
     right: 16px; z-index: 4; opacity: 0.35; cursor: pointer;
   }
   #ssExit:hover { opacity: 0.9; }
+  #ssQr {
+    position: absolute; right: 18px;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
+    z-index: 4; background: #fff; border-radius: 14px; padding: 8px 8px 6px;
+    display: none; flex-direction: column; align-items: center; gap: 3px;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+  }
+  #ssQr img { width: clamp(90px, 12vw, 150px); height: clamp(90px, 12vw, 150px); display: block; }
+  #ssQr span { color: #333; font-size: 0.66rem; font-weight: 700; }
+
+  /* ---------- Gast: Onboarding + Live-Galerie ---------- */
+  #guestScreen { background: var(--bg); }
+  #guestOnboard {
+    flex: 1; display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 22px; padding: 24px; text-align: center;
+  }
+  #guestOnboard h1 {
+    font-size: clamp(1.7rem, 7vw, 2.6rem);
+    background: linear-gradient(90deg, var(--pink), var(--yellow), var(--cyan));
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  #guestOnboard p { color: #cbb8e8; font-size: 1.05rem; max-width: 420px; }
+  #guestName {
+    background: rgba(255,255,255,0.08);
+    border: 2px solid rgba(255,255,255,0.25);
+    border-radius: 14px;
+    color: #fff; font-size: 1.2rem; text-align: center;
+    padding: 13px 18px; width: min(88vw, 380px); outline: none;
+  }
+  #guestName:focus { border-color: var(--pink); }
+  #guestGalleryWrap { flex: 1; display: none; flex-direction: column; min-height: 0; }
+  #guestHead {
+    display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+    padding: calc(env(safe-area-inset-top, 0px) + 14px) 16px 10px;
+  }
+  #guestHead h2 { font-size: 1.15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #guestCount { color: #9f8cc4; font-size: 0.85rem; white-space: nowrap; }
+  #guestGrid {
+    flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 8px; padding: 0 14px calc(env(safe-area-inset-bottom, 0px) + 14px);
+    align-content: start;
+  }
+  .gthumb { border-radius: 10px; overflow: hidden; aspect-ratio: 1; background: #241238; cursor: pointer; }
+  .gthumb img { width: 100%; height: 100%; object-fit: cover; }
+  #guestEmpty { grid-column: 1/-1; text-align: center; color: #9f8cc4; padding: 60px 16px; font-size: 1.05rem; }
+  #guestView {
+    position: fixed; inset: 0; z-index: 26;
+    background: rgba(10,4,20,0.97);
+    display: none; flex-direction: column; align-items: center; gap: 14px;
+    padding: calc(env(safe-area-inset-top, 0px) + 16px) 16px calc(env(safe-area-inset-bottom, 0px) + 16px);
+  }
+  #guestView.active { display: flex; }
+  #guestViewImgWrap { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; width: 100%; }
+  #guestViewImg { max-width: 100%; max-height: 100%; border-radius: 12px; }
 
   /* ---------- QR overlay ---------- */
   #qrOverlay {
@@ -283,7 +339,34 @@
   <img id="ssB" class="ssImg" alt="">
   <div id="ssEmpty">📸 Noch keine Fotos –<br>ran an die Fotobox!</div>
   <div id="ssTitle"></div>
+  <div id="ssQr"><img id="ssQrImg" alt="QR-Code zur Galerie"><span>📱 Alle Fotos aufs Handy</span></div>
   <button class="pill" id="ssExit">✕</button>
+</div>
+
+<!-- ===== Gast: Onboarding + Galerie ===== -->
+<div id="guestScreen" class="screen">
+  <div id="guestOnboard">
+    <h1 id="guestTitle">🎉 Willkommen!</h1>
+    <p>Sag uns kurz, wer du bist – danach siehst du alle Fotos der Party live auf deinem Handy.</p>
+    <input id="guestName" type="text" placeholder="Dein Name" maxlength="40" autocomplete="name">
+    <button class="bigBtn" id="guestGoBtn">Los geht's 🎉</button>
+  </div>
+  <div id="guestGalleryWrap">
+    <div id="guestHead">
+      <h2 id="guestHi">🖼️ Galerie</h2>
+      <span id="guestCount"></span>
+    </div>
+    <div id="guestGrid"><div id="guestEmpty">Noch keine Fotos – gleich geht's los! 🎉</div></div>
+  </div>
+</div>
+
+<!-- ===== Gast: Foto-Viewer ===== -->
+<div id="guestView">
+  <div id="guestViewImgWrap"><img id="guestViewImg" alt="Foto"></div>
+  <div class="btnRow">
+    <button class="actBtn primary" id="gShareBtn">📤 Teilen / Sichern</button>
+    <button class="actBtn ghost" id="gCloseBtn">✕ Schließen</button>
+  </div>
 </div>
 
 <!-- ===== Camera ===== -->
@@ -372,6 +455,9 @@
   var SUPA_KEY = "sb_publishable_VN5ZUqe3xGUGoNJiH-FeYw_jI5rS9pR";
   var SUPA_BUCKET = "fotobox";
   var QR_RENDER = "https://qr-coder.supermatt.agency/api/render";
+  // Optional: /r/-Kurz-URL des dynamischen Event-Codes aus der qr-coder-Console
+  // (z. B. "https://qr-coder.supermatt.agency/r/sabrina40"). Leer = direkte Gast-URL.
+  var GUEST_QR_URL_OVERRIDE = "";
 
   // ---------- State ----------
   var photos = [];            // { dataUrl, ts, shareUrl }
@@ -385,7 +471,7 @@
   // ---------- Elements ----------
   var $ = function (id) { return document.getElementById(id); };
   var video = $("video");
-  var screens = { start: $("startScreen"), cam: $("camScreen"), gallery: $("galleryScreen"), slideshow: $("slideshowScreen") };
+  var screens = { start: $("startScreen"), cam: $("camScreen"), gallery: $("galleryScreen"), slideshow: $("slideshowScreen"), guest: $("guestScreen") };
 
   function show(name) {
     Object.keys(screens).forEach(function (k) { screens[k].classList.toggle("active", k === name); });
@@ -925,7 +1011,7 @@
     return slug ? { slug: slug, title: title } : null;
   }
 
-  function listEventPhotos(slug) {
+  function listEventPhotos(slug, order) {
     return fetch(SUPA_URL + "/storage/v1/object/list/" + SUPA_BUCKET, {
       method: "POST",
       headers: {
@@ -933,7 +1019,7 @@
         "Authorization": "Bearer " + SUPA_KEY,
         "Content-Type": "application/json"
       },
-      body: JSON.stringify({ prefix: slug + "/", limit: 1000, sortBy: { column: "name", order: "asc" } })
+      body: JSON.stringify({ prefix: slug + "/", limit: 1000, sortBy: { column: "name", order: order || "asc" } })
     }).then(function (res) {
       if (!res.ok) throw new Error("List fehlgeschlagen (HTTP " + res.status + ")");
       return res.json();
@@ -986,6 +1072,14 @@
   function startSlideshow(slug, title) {
     ssSlug = slug;
     $("ssTitle").textContent = "✨ " + (title || slug.replace(/-/g, " ")) + " ✨";
+    // QR-Ecke: fuehrt die Gaeste zur Handy-Galerie. Sobald der dynamische
+    // Code aus der qr-coder-Console existiert, dessen /r/-URL in
+    // GUEST_QR_URL_OVERRIDE eintragen (dann gibt's Scan-Statistik).
+    var guestUrl = GUEST_QR_URL_OVERRIDE ||
+      (location.origin + location.pathname + "#gast=" + encodeURIComponent(slug) +
+       (title ? "&title=" + encodeURIComponent(title) : ""));
+    $("ssQrImg").src = QR_RENDER + "?data=" + encodeURIComponent(guestUrl) + "&size=300";
+    $("ssQr").style.display = "flex";
     stopCamera();
     show("slideshow");
     ssPoll();
@@ -1012,6 +1106,125 @@
     startSlideshow(eventSlug(), eventName());
   });
 
+  // ---------- Gast: Onboarding + Live-Galerie (Handy) ----------
+  // Aufruf per #gast=<event-slug>[&title=...] — der QR, den die Gaeste scannen.
+  var G_POLL_MS = 12000;
+  var gSlug = null, gTitle = "", gUrls = [], gTimer = null, gViewUrl = null;
+
+  function parseGuestHash() {
+    var h = location.hash.replace(/^#/, "");
+    if (h.indexOf("gast") !== 0) return null;
+    var slug = null, title = "";
+    h.split("&").forEach(function (part) {
+      var kv = part.split("=");
+      if (kv[0] === "gast") slug = decodeURIComponent(kv[1] || "");
+      if (kv[0] === "title") title = decodeURIComponent(kv[1] || "");
+    });
+    return slug ? { slug: slug, title: title } : null;
+  }
+
+  function startGuest(slug, title) {
+    gSlug = slug;
+    gTitle = title || slug.replace(/-/g, " ");
+    $("guestTitle").textContent = "🎉 Willkommen bei " + gTitle + "!";
+    show("guest");
+    var savedName = null;
+    try { savedName = localStorage.getItem("fotobox_gast_name"); } catch (e) {}
+    if (savedName) openGuestGallery(savedName);
+  }
+
+  function openGuestGallery(name) {
+    $("guestOnboard").style.display = "none";
+    $("guestGalleryWrap").style.display = "flex";
+    $("guestHi").textContent = "Hi " + name + "! 👋";
+    guestPoll();
+    if (!gTimer) gTimer = setInterval(guestPoll, G_POLL_MS);
+    fetchGuestCount();
+  }
+
+  function guestPoll() {
+    listEventPhotos(gSlug, "desc").then(function (urls) {
+      if (urls.join("|") === gUrls.join("|")) return;
+      gUrls = urls;
+      renderGuestGrid();
+    }).catch(function () { /* naechster Poll versucht es wieder */ });
+  }
+
+  function renderGuestGrid() {
+    var grid = $("guestGrid");
+    grid.innerHTML = "";
+    if (!gUrls.length) {
+      grid.innerHTML = '<div id="guestEmpty">Noch keine Fotos – gleich geht\'s los! 🎉</div>';
+      return;
+    }
+    gUrls.forEach(function (u) {
+      var t = document.createElement("div");
+      t.className = "gthumb";
+      var img = document.createElement("img");
+      img.loading = "lazy";
+      img.src = u;
+      t.appendChild(img);
+      t.addEventListener("click", function () {
+        gViewUrl = u;
+        $("guestViewImg").src = u;
+        $("guestView").classList.add("active");
+      });
+      grid.appendChild(t);
+    });
+  }
+
+  function fetchGuestCount() {
+    fetch(SUPA_URL + "/rest/v1/fotobox_gaeste?event_slug=eq." + encodeURIComponent(gSlug) + "&select=id", {
+      headers: {
+        "apikey": SUPA_KEY,
+        "Authorization": "Bearer " + SUPA_KEY,
+        "Range": "0-0",
+        "Prefer": "count=exact"
+      }
+    }).then(function (res) {
+      var cr = res.headers.get("content-range") || "";
+      var n = parseInt(cr.split("/")[1], 10);
+      if (n > 0) $("guestCount").textContent = n + (n === 1 ? " Gast" : " Gäste") + " dabei";
+    }).catch(function () {});
+  }
+
+  $("guestGoBtn").addEventListener("click", function () {
+    var name = ($("guestName").value || "").trim();
+    if (!name) { $("guestName").focus(); return; }
+    try { localStorage.setItem("fotobox_gast_name", name); } catch (e) {}
+    // Eintrag ist Beiwerk — die Galerie darf auch bei Fehler aufgehen
+    fetch(SUPA_URL + "/rest/v1/fotobox_gaeste", {
+      method: "POST",
+      headers: {
+        "apikey": SUPA_KEY,
+        "Authorization": "Bearer " + SUPA_KEY,
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+      },
+      body: JSON.stringify({ event_slug: gSlug, name: name })
+    }).then(function () { fetchGuestCount(); }).catch(function () {});
+    openGuestGallery(name);
+  });
+
+  $("gCloseBtn").addEventListener("click", function () {
+    $("guestView").classList.remove("active");
+    gViewUrl = null;
+  });
+
+  $("gShareBtn").addEventListener("click", function () {
+    if (!gViewUrl) return;
+    var url = gViewUrl;
+    fetch(url).then(function (r) { return r.blob(); }).then(function (blob) {
+      var file = new File([blob], "fotobox.jpg", { type: "image/jpeg" });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        return navigator.share({ files: [file], title: gTitle });
+      }
+      window.open(url, "_blank");
+    }).catch(function () {
+      window.open(url, "_blank");
+    });
+  });
+
   // ---------- Touch trigger: Tipp auf die Bildflaeche loest aus ----------
   // Funktioniert auch mit RF-Seitenwender-Clips (z. B. SYUKUYU), die physisch
   // auf den Screen tippen. Buttons/Leisten liegen ausserhalb von #videoWrap.
@@ -1032,6 +1245,8 @@
       if (e.key === "Escape") stopSlideshow();
       return;
     }
+    // Gast-Ansicht (Handy): Tasten haben hier nichts auszuloesen
+    if (screens.guest.classList.contains("active")) return;
     // QR-Overlay offen: Taste = "Weiter", damit die Remote alles bedienen kann
     if ($("qrOverlay").classList.contains("active")) {
       e.preventDefault();
@@ -1056,9 +1271,11 @@
     if (photos.length) { e.preventDefault(); e.returnValue = ""; }
   });
 
-  // ---------- Boot: per #slideshow=<slug> direkt in die Diashow (TV/Beamer) ----------
+  // ---------- Boot: #slideshow=<slug> (TV/Beamer) bzw. #gast=<slug> (Handy) ----------
   var ssBoot = parseSlideshowHash();
+  var gBoot = parseGuestHash();
   if (ssBoot) startSlideshow(ssBoot.slug, ssBoot.title);
+  else if (gBoot) startGuest(gBoot.slug, gBoot.title);
 })();
 </script>
 </body>
