@@ -218,11 +218,12 @@
     gap: 14px; color: #9f8cc4; font-size: clamp(1.2rem, 3vw, 1.8rem);
     text-align: center; padding: 24px;
   }
-  #ssExit {
+  #ssExit, #ssFull {
     position: absolute; top: calc(env(safe-area-inset-top, 0px) + 14px);
     right: 16px; z-index: 4; opacity: 0.35; cursor: pointer;
   }
-  #ssExit:hover { opacity: 0.9; }
+  #ssFull { right: 82px; }
+  #ssExit:hover, #ssFull:hover { opacity: 0.9; }
   #ssQr {
     position: absolute; right: 18px;
     bottom: calc(env(safe-area-inset-bottom, 0px) + 18px);
@@ -340,6 +341,7 @@
   <div id="ssEmpty">📸 Noch keine Fotos –<br>ran an die Fotobox!</div>
   <div id="ssTitle"></div>
   <div id="ssQr"><img id="ssQrImg" alt="QR-Code zur Galerie"><span>📱 Alle Fotos aufs Handy</span></div>
+  <button class="pill" id="ssFull" title="Vollbild">⛶</button>
   <button class="pill" id="ssExit">✕</button>
 </div>
 
@@ -1080,6 +1082,7 @@
        (title ? "&title=" + encodeURIComponent(title) : ""));
     $("ssQrImg").src = QR_RENDER + "?data=" + encodeURIComponent(guestUrl) + "&size=300";
     $("ssQr").style.display = "flex";
+    $("ssFull").style.display = fullscreenSupported() ? "block" : "none";
     stopCamera();
     show("slideshow");
     ssPoll();
@@ -1099,6 +1102,23 @@
   }
 
   $("ssExit").addEventListener("click", stopSlideshow);
+
+  // Vollbild direkt aus der Seite (Fullscreen-API, braucht eine Nutzer-Geste).
+  // iPhone-Safari kann das nicht — dort wird der Button ausgeblendet.
+  function fullscreenSupported() {
+    var el = document.documentElement;
+    return !!(el.requestFullscreen || el.webkitRequestFullscreen);
+  }
+  $("ssFull").addEventListener("click", function () {
+    var doc = document, el = doc.documentElement;
+    if (doc.fullscreenElement || doc.webkitFullscreenElement) {
+      (doc.exitFullscreen || doc.webkitExitFullscreen).call(doc);
+    } else if (el.requestFullscreen) {
+      el.requestFullscreen().catch(function () {});
+    } else if (el.webkitRequestFullscreen) {
+      el.webkitRequestFullscreen();
+    }
+  });
 
   $("slideshowBtn").addEventListener("click", function () {
     try { localStorage.setItem("fotobox_event", eventName()); } catch (e) {}
