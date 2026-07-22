@@ -405,6 +405,10 @@
         <svg viewBox="0 0 26 28" width="26" height="28"><rect x="1" y="1" width="24" height="26" rx="2" fill="#fff"/><rect x="3" y="3" width="9.5" height="9.5" fill="#8a8a8a"/><rect x="13.5" y="3" width="9.5" height="9.5" fill="#8a8a8a"/><rect x="3" y="13.5" width="9.5" height="9.5" fill="#8a8a8a"/><rect x="13.5" y="13.5" width="9.5" height="9.5" fill="#8a8a8a"/></svg>
         <span>Collage 2×2</span>
       </button>
+      <button class="lay" data-l="card" title="Hi-Print-Karte 5,4×8,6 cm, 1 Foto im Druckformat">
+        <svg viewBox="0 0 18 28" width="18" height="28"><rect x="1" y="1" width="16" height="26" rx="2" fill="#fff"/><rect x="2.8" y="2.8" width="12.4" height="18" fill="#8a8a8a"/><rect x="5" y="23" width="8" height="1.8" rx="0.9" fill="#c9c9c9"/></svg>
+        <span>Hi-Print</span>
+      </button>
     </div>
     <div id="shutterRow">
       <div style="width:62px"></div>
@@ -653,15 +657,20 @@
     ctx.putImageData(img, 0, 0);
   }
 
-  function grabFrame(square) {
+  function grabFrame(ratio) {
+    // ratio = gewuenschtes Seitenverhaeltnis (Breite/Hoehe) des Ausschnitts,
+    // mittig aus dem Videobild geschnitten; null/undefined = volles Bild.
     var vw = video.videoWidth || 1280;
     var vh = video.videoHeight || 720;
     var sx = 0, sy = 0, sw = vw, sh = vh;
-    if (square) {
-      var s = Math.min(vw, vh);
-      sx = Math.round((vw - s) / 2);
-      sy = Math.round((vh - s) / 2);
-      sw = sh = s;
+    if (ratio) {
+      if (vw / vh > ratio) {
+        sh = vh; sw = Math.round(vh * ratio);
+        sx = Math.round((vw - sw) / 2);
+      } else {
+        sw = vw; sh = Math.round(vw / ratio);
+        sy = Math.round((vh - sh) / 2);
+      }
     }
     var c = document.createElement("canvas");
     c.width = sw; c.height = sh;
@@ -744,6 +753,33 @@
     ctx.font = "36px 'Segoe UI', sans-serif";
     ctx.fillText(new Date().toLocaleDateString("de-DE"), W / 2, ty + 48);
     if (t.deco) t.deco(ctx, W, H);
+    return c;
+  }
+
+  // Hi-Print-Layout: das Foto wird direkt im Kartenformat aufgenommen
+  // und fuellt die 2:3-Karte — Design und Druck-Master sind identisch.
+  function frameCard(srcCanvas) {
+    var t = THEMES[currentTheme];
+    var W = 1080, H = 1748, pad = 54, footer = 230;
+    var c = document.createElement("canvas");
+    c.width = W; c.height = H;
+    var ctx = c.getContext("2d");
+    var grad = ctx.createLinearGradient(0, 0, W, H);
+    grad.addColorStop(0, t.grad[0]); grad.addColorStop(1, t.grad[1]);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+    var photoW = W - pad * 2, photoH = H - pad - footer - pad;
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(pad - 8, pad - 8, photoW + 16, photoH + 16);
+    drawCover(ctx, srcCanvas, pad, pad, photoW, photoH);
+    var ty = (H - footer - pad) + pad + footer / 2;
+    ctx.fillStyle = t.stripText;
+    ctx.textAlign = "center";
+    ctx.font = "bold 60px 'Segoe UI', sans-serif";
+    ctx.fillText("✨ " + eventName() + " ✨", W / 2, ty - 6);
+    ctx.font = "36px 'Segoe UI', sans-serif";
+    ctx.fillText(new Date().toLocaleDateString("de-DE"), W / 2, ty + 48);
+    if (t.deco) t.deco(ctx, c.width, c.height);
     return c;
   }
 
@@ -836,19 +872,25 @@
   }
 
   // ---------- Shutter ----------
+  // Foto-Zuschnitt der Hi-Print-Karte (Bildflaeche 972x1410 -> hochkant)
+  var CARD_PHOTO_RATIO = 972 / 1410;
+
   $("shutter").addEventListener("click", function () {
     if (busy || !stream) return;
     busy = true;
-    var square = (mode !== "strip");
-    var total = mode === "single" ? 1 : mode === "strip" ? 3 : 4;
+    var ratio = mode === "strip" ? null : mode === "card" ? CARD_PHOTO_RATIO : 1;
+    var total = mode === "single" || mode === "card" ? 1 : mode === "strip" ? 3 : 4;
     var shots = [];
     var prog = $("stripProgress");
     function finish() {
       var framed = mode === "single" ? frameSingle(shots[0])
                  : mode === "strip"  ? frameStrip(shots)
+                 : mode === "card"   ? frameCard(shots[0])
                  : frameGrid(shots);
-      // Webversion des Designs + 2:3-Druckkarte fuer den Polaroid Hi-Print
-      openReview(canvasToWebDataUrl(framed), printCard(shots).toDataURL("image/jpeg", 0.95));
+      // Webversion des Designs + 2:3-Druckkarte fuer den Polaroid Hi-Print.
+      // Im Karten-Modus IST das Design bereits die Druckkarte.
+      var printMaster = mode === "card" ? framed : printCard(shots);
+      openReview(canvasToWebDataUrl(framed), printMaster.toDataURL("image/jpeg", 0.95));
       busy = false;
     }
     function next(i) {
@@ -861,7 +903,7 @@
         prog.style.display = "none";
         countdown(3).then(function () {
           flash();
-          shots.push(grabFrame(square));
+          shots.push(grabFrame(ratio));
           next(i + 1);
         });
       }, i === 1 ? 300 : 900);
