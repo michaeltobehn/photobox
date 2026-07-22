@@ -205,13 +205,6 @@
     object-fit: contain; opacity: 0; transition: opacity 1.2s ease;
   }
   #slideshowScreen img.ssImg.visible { opacity: 1; }
-  #ssTitle {
-    position: absolute; left: 0; right: 0;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 22px);
-    text-align: center; font-weight: 700; letter-spacing: 1px;
-    font-size: clamp(1.1rem, 2.5vw, 1.8rem); color: #fff; opacity: 0.85;
-    text-shadow: 0 2px 14px rgba(0,0,0,0.85); z-index: 3; pointer-events: none;
-  }
   #ssEmpty {
     position: absolute; inset: 0; z-index: 2;
     display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -339,7 +332,6 @@
   <img id="ssA" class="ssImg" alt="">
   <img id="ssB" class="ssImg" alt="">
   <div id="ssEmpty">📸 Noch keine Fotos –<br>ran an die Fotobox!</div>
-  <div id="ssTitle"></div>
   <div id="ssQr"><img id="ssQrImg" alt="QR-Code zur Galerie"><span>📱 Alle Fotos aufs Handy</span></div>
   <button class="pill" id="ssFull" title="Vollbild">⛶</button>
   <button class="pill" id="ssExit">✕</button>
@@ -1208,7 +1200,6 @@
 
   function startSlideshow(slug, title) {
     ssSlug = slug;
-    $("ssTitle").textContent = "✨ " + (title || slug.replace(/-/g, " ")) + " ✨";
     // QR-Ecke: fuehrt die Gaeste zur Handy-Galerie. Sobald der dynamische
     // Code aus der qr-coder-Console existiert, dessen /r/-URL in
     // GUEST_QR_URL_OVERRIDE eintragen (dann gibt's Scan-Statistik).
