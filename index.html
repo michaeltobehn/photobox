@@ -328,7 +328,7 @@
 <div id="startScreen" class="screen active">
   <h1>📸 FOTOBOX</h1>
   <p class="sub">Name der Party eingeben, Kamera starten, posieren – fertig!</p>
-  <input id="eventName" type="text" value="Sabrinas 40. Geburtstag" placeholder="Sabrinas 40. Geburtstag" maxlength="40">
+  <input id="eventName" type="text" value="Sabrinas Geburtstag" placeholder="Sabrinas Geburtstag" maxlength="40">
   <button class="bigBtn" id="startBtn">Kamera starten 🎉</button>
   <button class="pill" id="slideshowBtn">📺 Slideshow für TV/Beamer</button>
   <p id="startError"></p>
@@ -468,7 +468,8 @@
   var mode = "single";        // single | strip
   var stream = null;
   var busy = false;
-  var pendingDataUrl = null;
+  var pendingDataUrl = null;   // Webversion (Anzeige, Upload, QR)
+  var pendingPrintUrl = null;  // Druckversion (Download/Teilen, print/-Backup)
 
   // ---------- Elements ----------
   var $ = function (id) { return document.getElementById(id); };
@@ -674,6 +675,19 @@
     return c;
   }
 
+  // Webversion: max. 1200px Kante, staerker komprimiert — fuer QR, Galerie
+  // und Slideshow. Der Druck-Master behaelt die volle Canvas-Groesse.
+  function canvasToWebDataUrl(c) {
+    var MAX = 1200;
+    var scale = Math.min(1, MAX / Math.max(c.width, c.height));
+    if (scale >= 1) return c.toDataURL("image/jpeg", 0.82);
+    var s = document.createElement("canvas");
+    s.width = Math.round(c.width * scale);
+    s.height = Math.round(c.height * scale);
+    s.getContext("2d").drawImage(c, 0, 0, s.width, s.height);
+    return s.toDataURL("image/jpeg", 0.82);
+  }
+
   function frameSingle(srcCanvas) {
     // Polaroid-style frame, theme-aware
     var t = THEMES[currentTheme];
@@ -774,7 +788,8 @@
       var framed = mode === "single" ? frameSingle(shots[0])
                  : mode === "strip"  ? frameStrip(shots)
                  : frameGrid(shots);
-      openReview(framed.toDataURL("image/jpeg", 0.92));
+      // Zwei Qualitaeten: Druck-Master (volle Groesse) + schlanke Webversion
+      openReview(canvasToWebDataUrl(framed), framed.toDataURL("image/jpeg", 0.95));
       busy = false;
     }
     function next(i) {
@@ -799,9 +814,10 @@
   var reviewMode = "new";   // "new" = frisches Foto | "gallery" = aus Galerie geöffnet
   var galleryIdx = -1;
 
-  function openReview(dataUrl) {
+  function openReview(dataUrl, printUrl) {
     reviewMode = "new";
     pendingDataUrl = dataUrl;
+    pendingPrintUrl = printUrl || null;
     $("reviewImg").src = dataUrl;
     $("shareBtn").style.display = (navigator.canShare) ? "inline-block" : "none";
     $("qrBtn").style.display = "none";
@@ -812,12 +828,13 @@
   function closeReview() {
     $("review").classList.remove("active");
     pendingDataUrl = null;
+    pendingPrintUrl = null;
     galleryIdx = -1;
   }
 
   $("keepBtn").addEventListener("click", function () {
     var isNew = (reviewMode === "new" && pendingDataUrl);
-    var photo = isNew ? addPhoto(pendingDataUrl) : null;
+    var photo = isNew ? addPhoto(pendingDataUrl, pendingPrintUrl) : null;
     closeReview();
     if (photo) openQrOverlay(photo);
   });
@@ -847,17 +864,20 @@
     document.body.removeChild(a);
   }
 
+  // Download/Teilen liefern immer die beste verfuegbare Qualitaet (Druck-Master)
   $("dlBtn").addEventListener("click", function () {
-    if (pendingDataUrl) downloadDataUrl(pendingDataUrl);
+    var u = pendingPrintUrl || pendingDataUrl;
+    if (u) downloadDataUrl(u);
   });
 
   $("shareBtn").addEventListener("click", function () {
-    if (!pendingDataUrl) return;
-    var file = new File([dataUrlToBlob(pendingDataUrl)], "fotobox.jpg", { type: "image/jpeg" });
+    var u = pendingPrintUrl || pendingDataUrl;
+    if (!u) return;
+    var file = new File([dataUrlToBlob(u)], "fotobox.jpg", { type: "image/jpeg" });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       navigator.share({ files: [file], title: eventName() }).catch(function () {});
     } else {
-      downloadDataUrl(pendingDataUrl);
+      downloadDataUrl(u);
     }
   });
 
@@ -869,22 +889,35 @@
     return s || "party";
   }
 
-  function uploadPhoto(photo) {
-    // Laeuft pro Foto genau einmal; das Promise wird gemerkt, damit
-    // "Nochmal versuchen" und der Galerie-QR-Button nicht doppelt hochladen.
-    if (photo.uploadPromise) return photo.uploadPromise;
-    var path = eventSlug() + "/" + photo.ts + "-" + Math.random().toString(36).slice(2, 8) + ".jpg";
-    photo.uploadPromise = fetch(SUPA_URL + "/storage/v1/object/" + SUPA_BUCKET + "/" + path, {
+  function putObject(path, dataUrl) {
+    return fetch(SUPA_URL + "/storage/v1/object/" + SUPA_BUCKET + "/" + path, {
       method: "POST",
       headers: {
         "apikey": SUPA_KEY,
         "Authorization": "Bearer " + SUPA_KEY,
         "Content-Type": "image/jpeg"
       },
-      body: dataUrlToBlob(photo.dataUrl)
+      body: dataUrlToBlob(dataUrl)
     }).then(function (res) {
       if (!res.ok) throw new Error("Upload fehlgeschlagen (HTTP " + res.status + ")");
-      photo.shareUrl = SUPA_URL + "/storage/v1/object/public/" + SUPA_BUCKET + "/" + path;
+    });
+  }
+
+  function uploadPhoto(photo) {
+    // Laeuft pro Foto genau einmal; das Promise wird gemerkt, damit
+    // "Nochmal versuchen" und der Galerie-QR-Button nicht doppelt hochladen.
+    if (photo.uploadPromise) return photo.uploadPromise;
+    var name = photo.ts + "-" + Math.random().toString(36).slice(2, 8) + ".jpg";
+    var webPath = eventSlug() + "/" + name;
+    // Druck-Master als Backup nach print/ — unabhaengig vom QR-Flow,
+    // ein Fehler hier blockiert das Teilen nicht.
+    if (photo.printUrl && !photo.printUploaded) {
+      putObject(eventSlug() + "/print/" + name, photo.printUrl).then(function () {
+        photo.printUploaded = true;
+      }).catch(function () {});
+    }
+    photo.uploadPromise = putObject(webPath, photo.dataUrl).then(function () {
+      photo.shareUrl = SUPA_URL + "/storage/v1/object/public/" + SUPA_BUCKET + "/" + webPath;
       return photo.shareUrl;
     }).catch(function (err) {
       photo.uploadPromise = null; // Retry erlauben
@@ -951,8 +984,8 @@
   });
 
   // ---------- Gallery ----------
-  function addPhoto(dataUrl) {
-    var photo = { dataUrl: dataUrl, ts: Date.now(), shareUrl: null };
+  function addPhoto(dataUrl, printUrl) {
+    var photo = { dataUrl: dataUrl, printUrl: printUrl || null, ts: Date.now(), shareUrl: null };
     photos.unshift(photo);
     $("galleryCount").textContent = photos.length;
     renderGallery();
@@ -982,6 +1015,7 @@
     reviewMode = "gallery";
     galleryIdx = idx;
     pendingDataUrl = p.dataUrl;
+    pendingPrintUrl = p.printUrl || null;
     $("reviewImg").src = p.dataUrl;
     $("shareBtn").style.display = (navigator.canShare) ? "inline-block" : "none";
     $("qrBtn").style.display = "inline-block";
@@ -1066,6 +1100,12 @@
         ssPhotos.push(u);
         if (hadPhotos) ssQueue.push(u); // nur NEUE Fotos vordraengeln, nicht den Erstbestand
       });
+      if (!ssPhotos.length) {
+        // Ordner sichtbar machen — der haeufigste Fehler ist ein anderer
+        // Eventname auf dem iPad (anderer Ordner = leere Slideshow)
+        $("ssEmpty").innerHTML = "📸 Noch keine Fotos –<br>ran an die Fotobox!<br>" +
+          '<span style="font-size:0.75em;opacity:0.7">Event-Ordner: „' + ssSlug + '" – der Eventname am iPad muss dazu passen</span>';
+      }
       $("ssEmpty").style.display = ssPhotos.length ? "none" : "flex";
       if (ssPhotos.length && ssIdx === -1) ssTick(); // erstes Bild sofort, nicht erst nach 6s
     }).catch(function () { /* naechster Poll versucht es wieder */ });
@@ -1122,7 +1162,9 @@
 
   $("slideshowBtn").addEventListener("click", function () {
     try { localStorage.setItem("fotobox_event", eventName()); } catch (e) {}
-    location.hash = "slideshow=" + encodeURIComponent(eventSlug()) + "&title=" + encodeURIComponent(eventName());
+    var ssHash = "#slideshow=" + encodeURIComponent(eventSlug()) + "&title=" + encodeURIComponent(eventName());
+    // replaceState statt location.hash: loest kein hashchange-Reload aus
+    try { history.replaceState(null, "", ssHash); } catch (e) { location.hash = ssHash; }
     startSlideshow(eventSlug(), eventName());
   });
 
@@ -1290,6 +1332,10 @@
   window.addEventListener("beforeunload", function (e) {
     if (photos.length) { e.preventDefault(); e.returnValue = ""; }
   });
+
+  // Hash-Wechsel (z. B. neue Slideshow-URL eingefuegt) laedt die Seite neu —
+  // sonst bootet die neue Route nie und der TV zeigt stumm die alte Ansicht.
+  window.addEventListener("hashchange", function () { location.reload(); });
 
   // ---------- Boot: #slideshow=<slug> (TV/Beamer) bzw. #gast=<slug> (Handy) ----------
   var ssBoot = parseSlideshowHash();
