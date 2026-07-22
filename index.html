@@ -104,8 +104,7 @@
     display: flex; flex-direction: column; align-items: center; gap: 16px;
     z-index: 5;
   }
-  #filterRow, #themeRow { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
-  .chip.tsel { border-color: var(--cyan); color: var(--cyan); font-weight: 700; }
+  #filterRow { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
   .confetti {
     position: fixed; top: -24px; width: 12px; height: 18px;
     z-index: 30; pointer-events: none; border-radius: 3px;
@@ -272,7 +271,7 @@
 <div id="startScreen" class="screen active">
   <h1>📸 FOTOBOX</h1>
   <p class="sub">Name der Party eingeben, Kamera starten, posieren – fertig!</p>
-  <input id="eventName" type="text" placeholder="z. B. Annas 30. Geburtstag" maxlength="40">
+  <input id="eventName" type="text" value="Sabrinas 40. Geburtstag" placeholder="Sabrinas 40. Geburtstag" maxlength="40">
   <button class="bigBtn" id="startBtn">Kamera starten 🎉</button>
   <button class="pill" id="slideshowBtn">📺 Slideshow für TV/Beamer</button>
   <p id="startError"></p>
@@ -302,12 +301,6 @@
   <div id="flash"></div>
 
   <div id="controls">
-    <div id="themeRow">
-      <button class="chip tsel" data-t="classic">🤍 Klassik</button>
-      <button class="chip" data-t="neon">💜 Neon</button>
-      <button class="chip" data-t="birthday">🎂 Geburtstag</button>
-      <button class="chip" data-t="wedding">💍 Hochzeit</button>
-    </div>
     <div id="filterRow">
       <button class="chip sel" data-f="f-none">Normal</button>
       <button class="chip" data-f="f-bw">Schwarz-Weiß</button>
@@ -463,8 +456,8 @@
     });
   });
 
-  // ---------- Themes (Motive fuer Rahmen & Streifen) ----------
-  var currentTheme = "classic";
+  // ---------- Theme (fest: Geburtstag — die Box laeuft nur fuer Sabrinas 40.) ----------
+  var currentTheme = "birthday";
 
   function decoEmojis(ctx, W, H, set) {
     var s = Math.round(W * 0.055);
@@ -480,44 +473,12 @@
   }
 
   var THEMES = {
-    classic: {
-      singleBg: "#ffffff", singleText: "#333333", singleSub: "#999999",
-      grad: ["#f7f4ec", "#e9e2d2"], stripText: "#5a5245",
-      deco: null
-    },
-    neon: {
-      singleBg: "#0d0221", singleText: "#2dd9ff", singleSub: "#ff2d78",
-      grad: ["#0d0221", "#2a0a4a"], stripText: "#2dd9ff",
-      deco: function (ctx, W, H) {
-        ctx.save();
-        ctx.strokeStyle = "#ff2d78";
-        ctx.lineWidth = Math.max(4, W * 0.008);
-        ctx.shadowColor = "#ff2d78";
-        ctx.shadowBlur = W * 0.02;
-        ctx.strokeRect(W * 0.018, H * 0.012, W * 0.964, H * 0.976);
-        ctx.restore();
-      }
-    },
     birthday: {
       singleBg: "#fff8e7", singleText: "#d63384", singleSub: "#b8860b",
       grad: ["#ffd52d", "#ff2d78"], stripText: "#ffffff",
       deco: function (ctx, W, H) { decoEmojis(ctx, W, H, ["🎈", "🎉", "🎂", "🥳", "🎁"]); }
-    },
-    wedding: {
-      singleBg: "#fdfbf7", singleText: "#7a6a58", singleSub: "#b7a98f",
-      grad: ["#f6efe6", "#e3d5bd"], stripText: "#7a6a58",
-      deco: function (ctx, W, H) { decoEmojis(ctx, W, H, ["💍", "🤍", "🌿", "✨"]); }
     }
   };
-
-  var themeChips = document.querySelectorAll("#themeRow .chip");
-  themeChips.forEach(function (c) {
-    c.addEventListener("click", function () {
-      themeChips.forEach(function (x) { x.classList.remove("tsel"); });
-      c.classList.add("tsel");
-      currentTheme = c.getAttribute("data-t");
-    });
-  });
 
   // ---------- Filter ----------
   var chips = document.querySelectorAll("#filterRow .chip");
