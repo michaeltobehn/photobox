@@ -199,6 +199,32 @@
   .actBtn.ghost { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.3); }
   .actBtn.danger { background: rgba(255,60,60,0.25); border: 1px solid rgba(255,90,90,0.6); }
 
+  /* ---------- Slideshow ---------- */
+  #slideshowScreen { background: #000; cursor: none; }
+  #slideshowScreen img.ssImg {
+    position: absolute; inset: 0; width: 100%; height: 100%;
+    object-fit: contain; opacity: 0; transition: opacity 1.2s ease;
+  }
+  #slideshowScreen img.ssImg.visible { opacity: 1; }
+  #ssTitle {
+    position: absolute; left: 0; right: 0;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 22px);
+    text-align: center; font-weight: 700; letter-spacing: 1px;
+    font-size: clamp(1.1rem, 2.5vw, 1.8rem); color: #fff; opacity: 0.85;
+    text-shadow: 0 2px 14px rgba(0,0,0,0.85); z-index: 3; pointer-events: none;
+  }
+  #ssEmpty {
+    position: absolute; inset: 0; z-index: 2;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px; color: #9f8cc4; font-size: clamp(1.2rem, 3vw, 1.8rem);
+    text-align: center; padding: 24px;
+  }
+  #ssExit {
+    position: absolute; top: calc(env(safe-area-inset-top, 0px) + 14px);
+    right: 16px; z-index: 4; opacity: 0.35; cursor: pointer;
+  }
+  #ssExit:hover { opacity: 0.9; }
+
   /* ---------- QR overlay ---------- */
   #qrOverlay {
     position: fixed; inset: 0; z-index: 25;
@@ -248,7 +274,17 @@
   <p class="sub">Name der Party eingeben, Kamera starten, posieren – fertig!</p>
   <input id="eventName" type="text" placeholder="z. B. Annas 30. Geburtstag" maxlength="40">
   <button class="bigBtn" id="startBtn">Kamera starten 🎉</button>
+  <button class="pill" id="slideshowBtn">📺 Slideshow für TV/Beamer</button>
   <p id="startError"></p>
+</div>
+
+<!-- ===== Slideshow ===== -->
+<div id="slideshowScreen" class="screen">
+  <img id="ssA" class="ssImg" alt="">
+  <img id="ssB" class="ssImg" alt="">
+  <div id="ssEmpty">📸 Noch keine Fotos –<br>ran an die Fotobox!</div>
+  <div id="ssTitle"></div>
+  <button class="pill" id="ssExit">✕</button>
 </div>
 
 <!-- ===== Camera ===== -->
@@ -356,7 +392,7 @@
   // ---------- Elements ----------
   var $ = function (id) { return document.getElementById(id); };
   var video = $("video");
-  var screens = { start: $("startScreen"), cam: $("camScreen"), gallery: $("galleryScreen") };
+  var screens = { start: $("startScreen"), cam: $("camScreen"), gallery: $("galleryScreen"), slideshow: $("slideshowScreen") };
 
   function show(name) {
     Object.keys(screens).forEach(function (k) { screens[k].classList.toggle("active", k === name); });
@@ -908,6 +944,113 @@
   $("galleryBtn").addEventListener("click", function () { renderGallery(); show("gallery"); });
   $("galleryBack").addEventListener("click", function () { show("cam"); });
 
+  // ---------- Slideshow (Live-Diashow fuer TV/Beamer) ----------
+  // Aufruf per URL-Hash: #slideshow=<event-slug>[&title=<Anzeigename>]
+  // oder ueber den Button auf dem Start-Screen (nimmt den Eventnamen von dort).
+  var SLIDE_MS = 6000, SS_POLL_MS = 12000;
+  var ssPhotos = [], ssSeen = {}, ssQueue = [];
+  var ssIdx = -1, ssActiveLayer = 0, ssSlug = null;
+  var ssTimer = null, ssPollTimer = null;
+
+  function parseSlideshowHash() {
+    var h = location.hash.replace(/^#/, "");
+    if (h.indexOf("slideshow") !== 0) return null;
+    var slug = null, title = "";
+    h.split("&").forEach(function (part) {
+      var kv = part.split("=");
+      if (kv[0] === "slideshow") slug = decodeURIComponent(kv[1] || "");
+      if (kv[0] === "title") title = decodeURIComponent(kv[1] || "");
+    });
+    return slug ? { slug: slug, title: title } : null;
+  }
+
+  function listEventPhotos(slug) {
+    return fetch(SUPA_URL + "/storage/v1/object/list/" + SUPA_BUCKET, {
+      method: "POST",
+      headers: {
+        "apikey": SUPA_KEY,
+        "Authorization": "Bearer " + SUPA_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ prefix: slug + "/", limit: 1000, sortBy: { column: "name", order: "asc" } })
+    }).then(function (res) {
+      if (!res.ok) throw new Error("List fehlgeschlagen (HTTP " + res.status + ")");
+      return res.json();
+    }).then(function (rows) {
+      return rows.filter(function (r) { return /\.jpg$/i.test(r.name || ""); }).map(function (r) {
+        return SUPA_URL + "/storage/v1/object/public/" + SUPA_BUCKET + "/" + slug + "/" + r.name;
+      });
+    });
+  }
+
+  function ssShow(url) {
+    var layers = [$("ssA"), $("ssB")];
+    var cur = layers[ssActiveLayer], next = layers[1 - ssActiveLayer];
+    var pre = new Image();
+    pre.onload = function () {
+      next.src = url;
+      next.classList.add("visible");
+      cur.classList.remove("visible");
+      ssActiveLayer = 1 - ssActiveLayer;
+    };
+    pre.src = url; // kaputte/halb hochgeladene Bilder werden einfach uebersprungen
+  }
+
+  function ssTick() {
+    if (!ssPhotos.length) return;
+    if (ssQueue.length) {
+      // Frisch geschossene Fotos zuerst zeigen — der Party-Moment
+      var u = ssQueue.shift();
+      ssIdx = ssPhotos.indexOf(u);
+    } else {
+      ssIdx = (ssIdx + 1) % ssPhotos.length;
+    }
+    ssShow(ssPhotos[ssIdx]);
+  }
+
+  function ssPoll() {
+    listEventPhotos(ssSlug).then(function (urls) {
+      var hadPhotos = ssPhotos.length > 0;
+      urls.forEach(function (u) {
+        if (ssSeen[u]) return;
+        ssSeen[u] = true;
+        ssPhotos.push(u);
+        if (hadPhotos) ssQueue.push(u); // nur NEUE Fotos vordraengeln, nicht den Erstbestand
+      });
+      $("ssEmpty").style.display = ssPhotos.length ? "none" : "flex";
+      if (ssPhotos.length && ssIdx === -1) ssTick(); // erstes Bild sofort, nicht erst nach 6s
+    }).catch(function () { /* naechster Poll versucht es wieder */ });
+  }
+
+  function startSlideshow(slug, title) {
+    ssSlug = slug;
+    $("ssTitle").textContent = "✨ " + (title || slug.replace(/-/g, " ")) + " ✨";
+    stopCamera();
+    show("slideshow");
+    ssPoll();
+    ssPollTimer = setInterval(ssPoll, SS_POLL_MS);
+    ssTimer = setInterval(ssTick, SLIDE_MS);
+  }
+
+  function stopSlideshow() {
+    clearInterval(ssTimer); clearInterval(ssPollTimer);
+    ssTimer = ssPollTimer = null;
+    ssPhotos = []; ssSeen = {}; ssQueue = []; ssIdx = -1;
+    $("ssA").classList.remove("visible");
+    $("ssB").classList.remove("visible");
+    try { history.replaceState(null, "", location.pathname + location.search); }
+    catch (e) { location.hash = ""; }
+    show("start");
+  }
+
+  $("ssExit").addEventListener("click", stopSlideshow);
+
+  $("slideshowBtn").addEventListener("click", function () {
+    try { localStorage.setItem("fotobox_event", eventName()); } catch (e) {}
+    location.hash = "slideshow=" + encodeURIComponent(eventSlug()) + "&title=" + encodeURIComponent(eventName());
+    startSlideshow(eventSlug(), eventName());
+  });
+
   // ---------- Touch trigger: Tipp auf die Bildflaeche loest aus ----------
   // Funktioniert auch mit RF-Seitenwender-Clips (z. B. SYUKUYU), die physisch
   // auf den Screen tippen. Buttons/Leisten liegen ausserhalb von #videoWrap.
@@ -923,6 +1066,11 @@
   window.addEventListener("keydown", function (e) {
     // Nicht ausloesen, wenn gerade ins Namensfeld getippt wird
     if (document.activeElement && document.activeElement.tagName === "INPUT") return;
+    // Slideshow laeuft: nur Escape beendet, alle anderen Tasten sind stumm
+    if (screens.slideshow.classList.contains("active")) {
+      if (e.key === "Escape") stopSlideshow();
+      return;
+    }
     // QR-Overlay offen: Taste = "Weiter", damit die Remote alles bedienen kann
     if ($("qrOverlay").classList.contains("active")) {
       e.preventDefault();
@@ -946,6 +1094,10 @@
   window.addEventListener("beforeunload", function (e) {
     if (photos.length) { e.preventDefault(); e.returnValue = ""; }
   });
+
+  // ---------- Boot: per #slideshow=<slug> direkt in die Diashow (TV/Beamer) ----------
+  var ssBoot = parseSlideshowHash();
+  if (ssBoot) startSlideshow(ssBoot.slug, ssBoot.title);
 })();
 </script>
 </body>
