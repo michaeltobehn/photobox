@@ -688,6 +688,65 @@
     return s.toDataURL("image/jpeg", 0.82);
   }
 
+  // ---------- Hi-Print-Druckkarte (2:3 hochkant, 5,4 x 8,6 cm Papier) ----------
+  // Eigenes Rendering statt Beschnitt des Web-Designs: die Polaroid-Hi-Print-App
+  // druckt randlos 2:3 — diese Karte passt exakt, nichts wird abgeschnitten.
+  function drawCover(ctx, src, x, y, w, h) {
+    var sr = src.width / src.height, dr = w / h;
+    var sw = src.width, sh = src.height, sx = 0, sy = 0;
+    if (sr > dr) { sw = Math.round(src.height * dr); sx = Math.round((src.width - sw) / 2); }
+    else { sh = Math.round(src.width / dr); sy = Math.round((src.height - sh) / 2); }
+    ctx.drawImage(src, sx, sy, sw, sh, x, y, w, h);
+  }
+
+  function printCard(shots) {
+    var t = THEMES[currentTheme];
+    var W = 1080, H = 1748, pad = 54, gap = 24;
+    var c = document.createElement("canvas");
+    c.width = W; c.height = H;
+    var ctx = c.getContext("2d");
+    var grad = ctx.createLinearGradient(0, 0, W, H);
+    grad.addColorStop(0, t.grad[0]); grad.addColorStop(1, t.grad[1]);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, W, H);
+    var innerW = W - pad * 2;
+    var textTop;
+    ctx.fillStyle = "#fff";
+    if (shots.length === 1) {
+      ctx.fillRect(pad - 8, pad - 8, innerW + 16, innerW + 16);
+      drawCover(ctx, shots[0], pad, pad, innerW, innerW);
+      textTop = pad + innerW;
+    } else if (shots.length === 3) {
+      var cellH = Math.round((H - pad - 230 - 2 * gap) / 3);
+      shots.forEach(function (s, i) {
+        var y = pad + i * (cellH + gap);
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(pad - 8, y - 8, innerW + 16, cellH + 16);
+        drawCover(ctx, s, pad, y, innerW, cellH);
+      });
+      textTop = pad + 3 * cellH + 2 * gap;
+    } else {
+      var cell = Math.round((innerW - gap) / 2);
+      var posn = [[pad, pad], [pad + cell + gap, pad],
+                  [pad, pad + cell + gap], [pad + cell + gap, pad + cell + gap]];
+      shots.forEach(function (s, i) {
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(posn[i][0] - 8, posn[i][1] - 8, cell + 16, cell + 16);
+        drawCover(ctx, s, posn[i][0], posn[i][1], cell, cell);
+      });
+      textTop = pad + 2 * cell + gap;
+    }
+    var ty = textTop + (H - textTop) / 2;
+    ctx.fillStyle = t.stripText;
+    ctx.textAlign = "center";
+    ctx.font = "bold 60px 'Segoe UI', sans-serif";
+    ctx.fillText("✨ " + eventName() + " ✨", W / 2, ty - 6);
+    ctx.font = "36px 'Segoe UI', sans-serif";
+    ctx.fillText(new Date().toLocaleDateString("de-DE"), W / 2, ty + 48);
+    if (t.deco) t.deco(ctx, W, H);
+    return c;
+  }
+
   function frameSingle(srcCanvas) {
     // Polaroid-style frame, theme-aware
     var t = THEMES[currentTheme];
@@ -788,8 +847,8 @@
       var framed = mode === "single" ? frameSingle(shots[0])
                  : mode === "strip"  ? frameStrip(shots)
                  : frameGrid(shots);
-      // Zwei Qualitaeten: Druck-Master (volle Groesse) + schlanke Webversion
-      openReview(canvasToWebDataUrl(framed), framed.toDataURL("image/jpeg", 0.95));
+      // Webversion des Designs + 2:3-Druckkarte fuer den Polaroid Hi-Print
+      openReview(canvasToWebDataUrl(framed), printCard(shots).toDataURL("image/jpeg", 0.95));
       busy = false;
     }
     function next(i) {
@@ -864,14 +923,14 @@
     document.body.removeChild(a);
   }
 
-  // Download/Teilen liefern immer die beste verfuegbare Qualitaet (Druck-Master)
+  // Download/Teilen liefern das angezeigte Design; die 2:3-Druckkarte
+  // fuer den Hi-Print liegt separat im print/-Ordner des Buckets.
   $("dlBtn").addEventListener("click", function () {
-    var u = pendingPrintUrl || pendingDataUrl;
-    if (u) downloadDataUrl(u);
+    if (pendingDataUrl) downloadDataUrl(pendingDataUrl);
   });
 
   $("shareBtn").addEventListener("click", function () {
-    var u = pendingPrintUrl || pendingDataUrl;
+    var u = pendingDataUrl;
     if (!u) return;
     var file = new File([dataUrlToBlob(u)], "fotobox.jpg", { type: "image/jpeg" });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
