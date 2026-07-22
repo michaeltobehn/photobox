@@ -199,6 +199,30 @@
   .actBtn.ghost { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.3); }
   .actBtn.danger { background: rgba(255,60,60,0.25); border: 1px solid rgba(255,90,90,0.6); }
 
+  /* ---------- QR overlay ---------- */
+  #qrOverlay {
+    position: fixed; inset: 0; z-index: 25;
+    background: rgba(10,4,20,0.96);
+    display: none; flex-direction: column; align-items: center; justify-content: center;
+    padding: 24px; gap: 20px; text-align: center;
+  }
+  #qrOverlay.active { display: flex; }
+  #qrOverlay h2 { font-size: clamp(1.4rem, 4vw, 2rem); }
+  #qrCard {
+    background: #fff; border-radius: 20px; padding: 18px;
+    box-shadow: 0 10px 50px rgba(0,0,0,0.6);
+    display: flex; align-items: center; justify-content: center;
+    width: min(62vw, 46vh, 420px); aspect-ratio: 1;
+  }
+  #qrImg { width: 100%; height: 100%; display: none; }
+  #qrSpinner {
+    width: 54px; height: 54px; border-radius: 50%;
+    border: 6px solid rgba(123,45,255,0.25); border-top-color: var(--purple);
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #qrStatus { color: #cbb8e8; font-size: 1.1rem; max-width: 480px; }
+
   /* ---------- Gallery ---------- */
   #galleryScreen { background: var(--bg); }
   #galleryHead {
@@ -281,9 +305,21 @@
   <div id="reviewImgWrap"><img id="reviewImg" alt="Foto"></div>
   <div class="btnRow">
     <button class="actBtn primary" id="keepBtn">✔️ Behalten</button>
+    <button class="actBtn ghost" id="qrBtn" style="display:none">📱 QR-Code</button>
     <button class="actBtn ghost" id="shareBtn" style="display:none">📤 Teilen / Sichern</button>
     <button class="actBtn ghost" id="dlBtn">⬇️ Herunterladen</button>
     <button class="actBtn danger" id="retakeBtn">🔁 Nochmal</button>
+  </div>
+</div>
+
+<!-- ===== QR Sharing ===== -->
+<div id="qrOverlay">
+  <h2>📱 Foto aufs Handy holen</h2>
+  <div id="qrCard"><div id="qrSpinner"></div><img id="qrImg" alt="QR-Code zum Foto"></div>
+  <p id="qrStatus">Foto wird hochgeladen …</p>
+  <div class="btnRow">
+    <button class="actBtn ghost" id="qrRetryBtn" style="display:none">🔁 Nochmal versuchen</button>
+    <button class="actBtn primary" id="qrDoneBtn">Weiter 🎉</button>
   </div>
 </div>
 
@@ -300,8 +336,16 @@
 (function () {
   "use strict";
 
+  // ---------- QR-Sharing (Supabase Storage + qr-coder Renderer) ----------
+  // Publishable Key: gehoert clientseitig veroeffentlicht; Schreibrechte sind
+  // per Storage-Policy auf JPEG-Uploads in den Bucket "fotobox" begrenzt.
+  var SUPA_URL = "https://txogtizqjaighdabqozl.supabase.co";
+  var SUPA_KEY = "sb_publishable_VN5ZUqe3xGUGoNJiH-FeYw_jI5rS9pR";
+  var SUPA_BUCKET = "fotobox";
+  var QR_RENDER = "https://qr-coder.supermatt.agency/api/render";
+
   // ---------- State ----------
-  var photos = [];            // { dataUrl, ts }
+  var photos = [];            // { dataUrl, ts, shareUrl }
   var facing = "user";        // user | environment
   var currentFilter = "f-none";
   var mode = "single";        // single | strip
@@ -675,6 +719,7 @@
     pendingDataUrl = dataUrl;
     $("reviewImg").src = dataUrl;
     $("shareBtn").style.display = (navigator.canShare) ? "inline-block" : "none";
+    $("qrBtn").style.display = "none";
     $("keepBtn").textContent = "✔️ Behalten";
     $("retakeBtn").textContent = "🔁 Nochmal";
     $("review").classList.add("active");
@@ -686,8 +731,10 @@
   }
 
   $("keepBtn").addEventListener("click", function () {
-    if (reviewMode === "new" && pendingDataUrl) addPhoto(pendingDataUrl);
+    var isNew = (reviewMode === "new" && pendingDataUrl);
+    var photo = isNew ? addPhoto(pendingDataUrl) : null;
     closeReview();
+    if (photo) openQrOverlay(photo);
   });
   $("retakeBtn").addEventListener("click", function () {
     if (reviewMode === "gallery" && galleryIdx >= 0) {
@@ -729,11 +776,102 @@
     }
   });
 
+  // ---------- QR-Sharing ----------
+  function eventSlug() {
+    var s = eventName().toLowerCase()
+      .replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss")
+      .replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    return s || "party";
+  }
+
+  function uploadPhoto(photo) {
+    // Laeuft pro Foto genau einmal; das Promise wird gemerkt, damit
+    // "Nochmal versuchen" und der Galerie-QR-Button nicht doppelt hochladen.
+    if (photo.uploadPromise) return photo.uploadPromise;
+    var path = eventSlug() + "/" + photo.ts + "-" + Math.random().toString(36).slice(2, 8) + ".jpg";
+    photo.uploadPromise = fetch(SUPA_URL + "/storage/v1/object/" + SUPA_BUCKET + "/" + path, {
+      method: "POST",
+      headers: {
+        "apikey": SUPA_KEY,
+        "Authorization": "Bearer " + SUPA_KEY,
+        "Content-Type": "image/jpeg"
+      },
+      body: dataUrlToBlob(photo.dataUrl)
+    }).then(function (res) {
+      if (!res.ok) throw new Error("Upload fehlgeschlagen (HTTP " + res.status + ")");
+      photo.shareUrl = SUPA_URL + "/storage/v1/object/public/" + SUPA_BUCKET + "/" + path;
+      return photo.shareUrl;
+    }).catch(function (err) {
+      photo.uploadPromise = null; // Retry erlauben
+      throw err;
+    });
+    return photo.uploadPromise;
+  }
+
+  var qrPhoto = null;
+
+  function openQrOverlay(photo) {
+    qrPhoto = photo;
+    $("qrOverlay").classList.add("active");
+    $("qrImg").style.display = "none";
+    $("qrImg").removeAttribute("src");
+    $("qrSpinner").style.display = "block";
+    $("qrRetryBtn").style.display = "none";
+    $("qrStatus").textContent = "Foto wird hochgeladen …";
+    uploadPhoto(photo).then(function (shareUrl) {
+      if (qrPhoto !== photo || !$("qrOverlay").classList.contains("active")) return;
+      var img = $("qrImg");
+      img.onload = function () {
+        $("qrSpinner").style.display = "none";
+        img.style.display = "block";
+        $("qrStatus").textContent = "Mit der Handy-Kamera scannen und das Foto herunterladen!";
+      };
+      img.onerror = function () {
+        showQrError("QR-Code konnte nicht geladen werden – trotzdem ist das Foto online.");
+      };
+      img.src = QR_RENDER + "?data=" + encodeURIComponent(shareUrl) + "&size=480";
+    }).catch(function () {
+      if (qrPhoto !== photo || !$("qrOverlay").classList.contains("active")) return;
+      showQrError("Upload fehlgeschlagen – ist das iPad online?");
+    });
+  }
+
+  function showQrError(msg) {
+    $("qrSpinner").style.display = "none";
+    $("qrImg").style.display = "none";
+    $("qrStatus").textContent = msg;
+    $("qrRetryBtn").style.display = "inline-block";
+  }
+
+  function closeQrOverlay() {
+    $("qrOverlay").classList.remove("active");
+    qrPhoto = null;
+  }
+
+  $("qrDoneBtn").addEventListener("click", closeQrOverlay);
+  $("qrRetryBtn").addEventListener("click", function (e) {
+    e.stopPropagation();
+    if (qrPhoto) openQrOverlay(qrPhoto);
+  });
+  // Tipp irgendwo aufs Overlay schliesst es (Screen-Tapper-kompatibel)
+  $("qrOverlay").addEventListener("click", function (e) {
+    if (e.target.id !== "qrRetryBtn") closeQrOverlay();
+  });
+  $("qrBtn").addEventListener("click", function () {
+    if (reviewMode === "gallery" && galleryIdx >= 0) {
+      var p = photos[galleryIdx];
+      closeReview();
+      openQrOverlay(p);
+    }
+  });
+
   // ---------- Gallery ----------
   function addPhoto(dataUrl) {
-    photos.unshift({ dataUrl: dataUrl, ts: Date.now() });
+    var photo = { dataUrl: dataUrl, ts: Date.now(), shareUrl: null };
+    photos.unshift(photo);
     $("galleryCount").textContent = photos.length;
     renderGallery();
+    return photo;
   }
 
   function renderGallery() {
@@ -761,6 +899,7 @@
     pendingDataUrl = p.dataUrl;
     $("reviewImg").src = p.dataUrl;
     $("shareBtn").style.display = (navigator.canShare) ? "inline-block" : "none";
+    $("qrBtn").style.display = "inline-block";
     $("keepBtn").textContent = "✔️ Schließen";
     $("retakeBtn").textContent = "🗑️ Löschen";
     $("review").classList.add("active");
@@ -784,6 +923,12 @@
   window.addEventListener("keydown", function (e) {
     // Nicht ausloesen, wenn gerade ins Namensfeld getippt wird
     if (document.activeElement && document.activeElement.tagName === "INPUT") return;
+    // QR-Overlay offen: Taste = "Weiter", damit die Remote alles bedienen kann
+    if ($("qrOverlay").classList.contains("active")) {
+      e.preventDefault();
+      $("qrDoneBtn").click();
+      return;
+    }
     // Review offen: Taste = "Behalten"/"Schliessen", damit die Remote alles bedienen kann
     if ($("review").classList.contains("active")) {
       e.preventDefault();
