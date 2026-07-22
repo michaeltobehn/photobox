@@ -71,6 +71,16 @@
   }
   #video.rear { transform: none; }
 
+  /* Aufnahme-Vorschau: markiert den Bildausschnitt des aktiven Layouts,
+     dunkelt den Rest ab und zeigt ggf. die Template-Maske live an */
+  #previewFrame {
+    position: absolute; z-index: 4; pointer-events: none; display: none;
+    box-shadow: 0 0 0 9999px rgba(0,0,0,0.45);
+    border: 1px solid rgba(255,255,255,0.35); border-radius: 4px;
+    overflow: hidden;
+  }
+  #previewFrame img { width: 100%; height: 100%; display: block; }
+
   /* filter classes for preview */
   .f-none   { filter: none; }
   .f-bw     { filter: grayscale(1) contrast(1.1); }
@@ -365,7 +375,10 @@
 
 <!-- ===== Camera ===== -->
 <div id="camScreen" class="screen">
-  <div id="videoWrap"><video id="video" autoplay playsinline muted class="f-none"></video></div>
+  <div id="videoWrap">
+    <video id="video" autoplay playsinline muted class="f-none"></video>
+    <div id="previewFrame"><img id="previewMask" alt="" style="display:none"></div>
+  </div>
 
   <div id="topBar">
     <button class="pill" id="backBtn">✕ Ende</button>
@@ -525,6 +538,7 @@
     $("eventLabel").textContent = "✨ " + eventName();
     startCamera().then(function () {
       show("cam");
+      updatePreviewFrame();
     }).catch(function (e) {
       err.textContent = "Kamera konnte nicht gestartet werden: " + (e && e.name === "NotAllowedError" ? "Zugriff verweigert. Bitte Kamera-Berechtigung erlauben." : (e.message || e));
       err.style.display = "block";
@@ -590,8 +604,53 @@
       b.classList.add("sel-l");
       mode = b.getAttribute("data-l");
       $("shutter").classList.toggle("strip", mode !== "single");
+      updatePreviewFrame();
     });
   });
+
+  // ---------- Aufnahme-Vorschau (Ausschnitt + Template-Maske live) ----------
+  // Rechnet den Capture-Zuschnitt (grabFrame, mittig im Videobild) auf die
+  // object-fit:cover-Darstellung um: beide sind zentriert, also ist der
+  // sichtbare Ausschnitt einfach ein zentriertes Rechteck. Neue Templates
+  // brauchen hier nur ratio + ggf. mask.
+  function layoutPreview() {
+    if (mode === "card") return { ratio: CARD_PHOTO_RATIO, mask: CARD_MASK_SRC };
+    if (mode === "strip") return null; // volles Bild, keine Markierung
+    return { ratio: 1, mask: null };   // single & grid: quadratisch
+  }
+
+  function updatePreviewFrame() {
+    var el = $("previewFrame");
+    var p = layoutPreview();
+    if (!p || !stream || !screens.cam.classList.contains("active")) {
+      el.style.display = "none";
+      return;
+    }
+    var wrap = $("videoWrap");
+    var W = wrap.clientWidth, H = wrap.clientHeight;
+    var vw = video.videoWidth || 1280, vh = video.videoHeight || 720;
+    var s = Math.max(W / vw, H / vh);
+    var cw, ch;
+    if (vw / vh > p.ratio) { ch = vh; cw = vh * p.ratio; }
+    else { cw = vw; ch = vw / p.ratio; }
+    var w = cw * s, h = ch * s;
+    el.style.display = "block";
+    el.style.width = Math.round(w) + "px";
+    el.style.height = Math.round(h) + "px";
+    el.style.left = Math.round((W - w) / 2) + "px";
+    el.style.top = Math.round((H - h) / 2) + "px";
+    var mi = $("previewMask");
+    if (p.mask) {
+      if (mi.getAttribute("src") !== p.mask) mi.src = p.mask;
+      mi.style.display = "block";
+    } else {
+      mi.style.display = "none";
+    }
+  }
+
+  video.addEventListener("loadedmetadata", updatePreviewFrame);
+  window.addEventListener("resize", updatePreviewFrame);
+  window.addEventListener("orientationchange", updatePreviewFrame);
 
   // ---------- Capture helpers ----------
   function countdown(n) {
