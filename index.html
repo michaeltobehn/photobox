@@ -81,6 +81,30 @@
   }
   #previewFrame img { width: 100%; height: 100%; display: block; }
 
+  /* Blickfang neben der Kamera-Linse (iPad quer: rechter Rand, mittig) —
+     damit die Gaeste in die Kamera schauen statt aufs Display */
+  #lookHere {
+    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+    z-index: 6; pointer-events: none;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+  }
+  #lookHere .eyes {
+    font-size: 3rem; line-height: 1;
+    animation: lookPulse 1.5s ease-in-out infinite;
+    filter: drop-shadow(0 2px 8px rgba(0,0,0,0.6));
+    transition: font-size 0.25s;
+  }
+  #lookHere .hint {
+    font-size: 0.68rem; font-weight: 700; color: #fff;
+    background: rgba(0,0,0,0.5); border-radius: 999px; padding: 4px 10px;
+    white-space: nowrap;
+  }
+  #lookHere.big .eyes { font-size: 5rem; }
+  @keyframes lookPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.2); }
+  }
+
   /* filter classes for preview */
   .f-none   { filter: none; }
   .f-bw     { filter: grayscale(1) contrast(1.1); }
@@ -387,6 +411,7 @@
   </div>
 
   <div id="countdown"></div>
+  <div id="lookHere"><div class="eyes">👀</div><div class="hint">Hier hinschauen!</div></div>
   <div id="stripProgress"></div>
   <div id="flash"></div>
 
@@ -657,8 +682,9 @@
     return new Promise(function (resolve) {
       var el = $("countdown");
       el.classList.add("show");
+      $("lookHere").classList.add("big"); // Augen wachsen: JETZT in die Linse!
       function tick(i) {
-        if (i === 0) { el.classList.remove("show"); el.innerHTML = ""; resolve(); return; }
+        if (i === 0) { el.classList.remove("show"); el.innerHTML = ""; $("lookHere").classList.remove("big"); resolve(); return; }
         el.innerHTML = "<span>" + i + "</span>";
         setTimeout(function () { tick(i - 1); }, 1000);
       }
