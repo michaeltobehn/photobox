@@ -2,7 +2,10 @@
 
 DIY Party-Fotobox als Web-App (Tablet/iPad).
 
-Live: https://sabrina.supermatt.agency (Vercel, Auto-Deploy bei Push auf `main`).
+Live (Vercel, Auto-Deploy bei Push auf `main`):
+- **https://sabrina.supermatt.agency** — Startseite = Gäste-Home (Onboarding + Live-Galerie)
+- **https://sabrina.supermatt.agency/start** — Fotobox-Bedienung (iPad/Kamera)
+- **https://sabrina.supermatt.agency/admin.html** — Admin (Fotos löschen/archivieren, ZIP)
 
 ## QR-Sharing
 
