@@ -6,67 +6,96 @@
 <meta name="robots" content="noindex">
 <title>Fotobox Admin</title>
 <style>
-  :root { --pink: #ff2d78; --purple: #7b2dff; --bg: #12081f; }
+  :root {
+    --bg: #14161a; --panel: #1c1f25; --line: #2b2f37;
+    --txt: #e6e8ec; --mut: #8a919e; --acc: #4f7cff; --red: #e5484d;
+  }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg); color: #fff; min-height: 100vh; padding: 20px;
+    background: var(--bg); color: var(--txt); min-height: 100vh; padding: 24px;
   }
-  h1 { font-size: 1.4rem; margin-bottom: 4px; }
-  p.sub { color: #9f8cc4; font-size: 0.9rem; margin-bottom: 18px; }
-  #bar {
-    display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-bottom: 16px;
-  }
+  header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+  h1 { font-size: 1.15rem; font-weight: 600; }
+  p.sub { color: var(--mut); font-size: 0.83rem; margin-top: 2px; }
   input {
-    background: rgba(255,255,255,0.08);
-    border: 2px solid rgba(255,255,255,0.25); border-radius: 10px;
-    color: #fff; font-size: 1rem; padding: 10px 14px; outline: none;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    color: var(--txt); font-size: 0.9rem; padding: 8px 12px; outline: none;
   }
-  input:focus { border-color: var(--pink); }
+  input:focus { border-color: var(--acc); }
+  #pw { width: 170px; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px;
+  }
+  .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .lbl {
+    color: var(--mut); font-size: 0.72rem; text-transform: uppercase;
+    letter-spacing: 0.06em; margin-right: 2px; white-space: nowrap;
+  }
+  .divider { width: 1px; align-self: stretch; background: var(--line); margin: 0 8px; }
   button {
-    border: none; border-radius: 999px; padding: 10px 20px;
-    font-size: 0.95rem; font-weight: 700; cursor: pointer; color: #fff;
-    background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.3);
+    background: #262a31; border: 1px solid var(--line); border-radius: 8px;
+    color: var(--txt); font-size: 0.88rem; font-weight: 500;
+    padding: 8px 14px; cursor: pointer;
   }
-  button.primary { background: linear-gradient(135deg, var(--pink), var(--purple)); border: none; }
-  button.danger { background: rgba(255,60,60,0.25); border: 1px solid rgba(255,90,90,0.6); }
-  button:disabled { opacity: 0.4; cursor: default; }
-  #status { color: #9f8cc4; font-size: 0.9rem; margin: 10px 0; min-height: 1.2em; }
+  button:hover { border-color: #3a404b; }
+  button.primary { background: var(--acc); border-color: var(--acc); color: #fff; }
+  button.dngr { color: var(--red); }
+  button.dngr:hover { border-color: var(--red); }
+  button:disabled { opacity: 0.35; cursor: default; }
+  #status { color: var(--mut); font-size: 0.85rem; margin: 2px 0 12px; min-height: 1.2em; }
   #grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 10px; margin-top: 10px;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px;
   }
-  .ph { position: relative; border-radius: 10px; overflow: hidden; aspect-ratio: 1; background: #241238; cursor: pointer; }
+  .ph {
+    position: relative; border-radius: 8px; overflow: hidden; aspect-ratio: 1;
+    background: #20242b; cursor: pointer; border: 1px solid var(--line);
+  }
   .ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
   .ph .check {
-    position: absolute; top: 6px; left: 6px; width: 26px; height: 26px;
-    border-radius: 50%; background: rgba(0,0,0,0.55); border: 2px solid #fff;
-    display: flex; align-items: center; justify-content: center; font-size: 0.9rem;
+    position: absolute; top: 6px; left: 6px; width: 22px; height: 22px;
+    border-radius: 50%; background: rgba(10,12,16,0.65); border: 1.5px solid rgba(255,255,255,0.7);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.75rem; color: #fff;
   }
-  .ph.sel { outline: 3px solid var(--pink); }
-  .ph.sel .check { background: var(--pink); }
+  .ph.sel { outline: 2px solid var(--acc); outline-offset: -2px; }
+  .ph.sel .check { background: var(--acc); border-color: var(--acc); }
   .ph time {
-    position: absolute; bottom: 0; left: 0; right: 0; font-size: 0.65rem;
-    background: rgba(0,0,0,0.55); padding: 3px 6px; color: #ddd;
+    position: absolute; bottom: 0; left: 0; right: 0; font-size: 0.63rem;
+    background: rgba(10,12,16,0.65); padding: 3px 6px; color: #c8cdd6;
   }
 </style>
 </head>
 <body>
-<h1>🛠️ Fotobox Admin</h1>
-<p class="sub">Löscht Fotos endgültig aus Galerie, Slideshow &amp; Cloud — die print/-Druckkarte wird automatisch mitgelöscht.</p>
+<header>
+  <div>
+    <h1>Fotobox Admin</h1>
+    <p class="sub">Löschen ist endgültig (inkl. Druckkarte). Archivieren verschiebt nach archiv/ — raus aus Galerie &amp; Slideshow, nichts geht verloren.</p>
+  </div>
+  <input id="pw" type="password" placeholder="Admin-Passwort" autocomplete="current-password">
+</header>
 
-<div id="bar">
-  <input id="pw" type="password" placeholder="Admin-Passwort" style="width:190px">
-  <input id="slug" type="text" value="sabrinas-geburtstag" style="width:210px">
-  <button class="primary" id="loadBtn">Fotos laden</button>
-  <button id="selAllBtn">Alle an/abwählen</button>
-  <button class="danger" id="delBtn" disabled>Ausgewählte löschen</button>
-  <button id="archiveSelBtn" disabled>📦 Ausgewählte ins Archiv</button>
-  <button class="danger" id="purgeBtn">Event komplett löschen</button>
-  <button id="archiveBtn">📦 Ganzes Event ins Archiv</button>
-  <button id="zipBtn">⬇️ Alles als ZIP</button>
+<div class="panel">
+  <div class="row">
+    <span class="lbl">Event</span>
+    <input id="slug" type="text" value="sabrinas-geburtstag" style="width:220px">
+    <button class="primary" id="loadBtn">Laden</button>
+    <button id="selAllBtn">Alle an/abwählen</button>
+  </div>
+  <div class="row">
+    <span class="lbl">Auswahl</span>
+    <button id="archiveSelBtn" disabled>Ins Archiv</button>
+    <button class="dngr" id="delBtn" disabled>Löschen</button>
+    <span class="divider"></span>
+    <span class="lbl">Ganzes Event</span>
+    <button id="zipBtn">Als ZIP sichern</button>
+    <button id="archiveBtn">Ins Archiv</button>
+    <button class="dngr" id="purgeBtn">Löschen</button>
+  </div>
 </div>
-<div id="status">Passwort eingeben und „Fotos laden". Archivierte Ordner lassen sich über „archiv/&lt;name&gt;" wieder laden.</div>
+
+<div id="status">Passwort eingeben und „Laden". Archiv ansehen: Event-Feld auf archiv/&lt;name&gt; stellen.</div>
 <div id="grid"></div>
 
 <script>
@@ -92,9 +121,9 @@
   function updateDelBtn() {
     var n = photos.filter(function (p) { return p.sel; }).length;
     $("delBtn").disabled = !n;
-    $("delBtn").textContent = n ? "Ausgewählte löschen (" + n + ")" : "Ausgewählte löschen";
+    $("delBtn").textContent = n ? "Löschen (" + n + ")" : "Löschen";
     $("archiveSelBtn").disabled = !n;
-    $("archiveSelBtn").textContent = n ? "📦 Ausgewählte ins Archiv (" + n + ")" : "📦 Ausgewählte ins Archiv";
+    $("archiveSelBtn").textContent = n ? "Ins Archiv (" + n + ")" : "Ins Archiv";
   }
 
   function render() {
@@ -124,7 +153,7 @@
   }
 
   function loadPhotos() {
-    if (!slug()) { status("Bitte Event-Ordner angeben."); return; }
+    if (!slug()) { status("Bitte Event angeben."); return; }
     status("Lade …");
     fetch(SUPA_URL + "/storage/v1/object/list/" + BUCKET, {
       method: "POST",
@@ -167,10 +196,6 @@
 
   $("loadBtn").addEventListener("click", loadPhotos);
 
-  // Passwort schon gespeichert? Dann direkt das Standard-Event laden —
-  // das Ordner-Feld braucht man nur fuers Archiv oder andere Events.
-  if ($("pw").value) loadPhotos();
-
   $("selAllBtn").addEventListener("click", function () {
     var allSel = photos.length && photos.every(function (p) { return p.sel; });
     photos.forEach(function (p) { p.sel = !allSel; });
@@ -193,7 +218,7 @@
   $("archiveSelBtn").addEventListener("click", function () {
     var sel = photos.filter(function (p) { return p.sel; });
     if (!sel.length) return;
-    if (!confirm(sel.length + " Foto(s) ins Archiv verschieben? Sie verschwinden aus Galerie & Slideshow, bleiben aber unter archiv/ erhalten.")) return;
+    if (!confirm(sel.length + " Foto(s) ins Archiv verschieben?")) return;
     status("Verschiebe ins Archiv …");
     adminCall({ action: "archive", paths: sel.map(function (p) { return p.path; }) })
       .then(function (j) {
@@ -204,9 +229,9 @@
   });
 
   $("archiveBtn").addEventListener("click", function () {
-    if (!slug()) { status("Bitte Event-Ordner angeben."); return; }
+    if (!slug()) { status("Bitte Event angeben."); return; }
     if (slug().indexOf("archiv") === 0) { status("Ist schon im Archiv."); return; }
-    if (!confirm("Ordner „" + slug() + "“ ins Archiv verschieben? Er verschwindet damit aus Galerie & Slideshow, bleibt aber unter archiv/" + slug() + " erhalten.")) return;
+    if (!confirm("Ganzes Event „" + slug() + "“ ins Archiv verschieben?")) return;
     status("Verschiebe ins Archiv …");
     adminCall({ action: "archive", prefix: slug() })
       .then(function (j) {
@@ -241,8 +266,8 @@
       var crc = crc32(e.data);
       var head = new DataView(new ArrayBuffer(30));
       head.setUint32(0, 0x04034b50, true);
-      head.setUint16(4, 20, true);      // version
-      head.setUint16(8, 0, true);       // method STORE
+      head.setUint16(4, 20, true);
+      head.setUint16(8, 0, true);
       head.setUint32(14, crc, true);
       head.setUint32(18, e.data.length, true);
       head.setUint32(22, e.data.length, true);
@@ -271,10 +296,9 @@
   }
 
   $("zipBtn").addEventListener("click", function () {
-    if (!slug()) { status("Bitte Event-Ordner angeben."); return; }
+    if (!slug()) { status("Bitte Event angeben."); return; }
     var base = slug();
     status("Suche Dateien …");
-    // print/-Master bevorzugen, sonst Webversion
     function list(dir) {
       return fetch(SUPA_URL + "/storage/v1/object/list/" + BUCKET, {
         method: "POST",
@@ -287,11 +311,7 @@
       var prints = {};
       res[1].forEach(function (r) { if (/\.jpg$/i.test(r.name || "")) prints[r.name] = true; });
       var files = webs.map(function (r) {
-        var usePrint = prints[r.name];
-        return {
-          name: r.name,
-          path: base + (usePrint ? "/print/" : "/") + r.name
-        };
+        return { name: r.name, path: base + (prints[r.name] ? "/print/" : "/") + r.name };
       });
       if (!files.length) { status("Keine Fotos gefunden."); return; }
       var entries = [], done = 0;
@@ -316,23 +336,26 @@
             status("Lade " + done + "/" + files.length + " …");
             next(i + 1);
           })
-          .catch(function () { next(i + 1); }); // einzelne Fehler ueberspringen
+          .catch(function () { next(i + 1); });
       }
       next(0);
     });
   });
 
   $("purgeBtn").addEventListener("click", function () {
-    if (!slug()) { status("Bitte Event-Ordner angeben."); return; }
-    if (!confirm("WIRKLICH den kompletten Ordner „" + slug() + "“ leeren (alle Fotos + Druckkarten)?")) return;
-    status("Leere Ordner …");
+    if (!slug()) { status("Bitte Event angeben."); return; }
+    if (!confirm("WIRKLICH das komplette Event „" + slug() + "“ löschen (alle Fotos + Druckkarten)?")) return;
+    status("Lösche Event …");
     adminCall({ action: "purge", prefix: slug() })
       .then(function (j) {
-        status(j.deletedCount + " Datei(en) gelöscht — Ordner ist leer.");
+        status(j.deletedCount + " Datei(en) gelöscht — Event ist leer.");
         loadPhotos();
       })
       .catch(function (e) { status("Fehler: " + e.message); });
   });
+
+  // Passwort schon gespeichert? Dann direkt das Standard-Event laden.
+  if ($("pw").value) loadPhotos();
 })();
 </script>
 </body>
