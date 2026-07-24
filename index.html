@@ -1765,10 +1765,10 @@
     var name = "Gast";
     try { name = localStorage.getItem("fotobox_gast_name") || "Gast"; } catch (e) {}
     resizeAvatar(file).then(function (blob) {
-      var path = gSlug + "/avatare/" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + ".jpg";
+      var path = gSlug + "/avatare/" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + ".png";
       return fetch(SUPA_URL + "/storage/v1/object/" + SUPA_BUCKET + "/" + path, {
         method: "POST",
-        headers: { "apikey": SUPA_KEY, "Authorization": "Bearer " + SUPA_KEY, "Content-Type": "image/jpeg" },
+        headers: { "apikey": SUPA_KEY, "Authorization": "Bearer " + SUPA_KEY, "Content-Type": "image/png" },
         body: blob
       }).then(function (res) {
         if (!res.ok) throw new Error("Upload fehlgeschlagen");
@@ -1858,7 +1858,8 @@
     }
   });
 
-  // Selfie auf 400x400 (cover) verkleinern — klein, schnell, rund genug
+  // Selfie auf 400x400 verkleinern und rund ausschneiden (Kreis-Maske,
+  // PNG mit Transparenz) — Avatare sind damit ueberall echte Kreise
   function resizeAvatar(file) {
     return new Promise(function (resolve, reject) {
       var url = URL.createObjectURL(file);
@@ -1866,11 +1867,16 @@
       img.onload = function () {
         var c = document.createElement("canvas");
         c.width = 400; c.height = 400;
-        drawCover(c.getContext("2d"), img, 0, 0, 400, 400);
+        var ctx = c.getContext("2d");
+        ctx.beginPath();
+        ctx.arc(200, 200, 200, 0, Math.PI * 2);
+        ctx.closePath();
+        ctx.clip();
+        drawCover(ctx, img, 0, 0, 400, 400);
         URL.revokeObjectURL(url);
         c.toBlob(function (b) {
           if (b) resolve(b); else reject(new Error("Bild nicht lesbar"));
-        }, "image/jpeg", 0.85);
+        }, "image/png");
       };
       img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("Bild nicht lesbar")); };
       img.src = url;
@@ -1898,10 +1904,10 @@
     if (guestSelfieFile) {
       // Selfie ist optional: jeder Fehler hier blockiert den Check-in nicht
       prep = resizeAvatar(guestSelfieFile).then(function (blob) {
-        avatarPath = gSlug + "/avatare/" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + ".jpg";
+        avatarPath = gSlug + "/avatare/" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + ".png";
         return fetch(SUPA_URL + "/storage/v1/object/" + SUPA_BUCKET + "/" + avatarPath, {
           method: "POST",
-          headers: { "apikey": SUPA_KEY, "Authorization": "Bearer " + SUPA_KEY, "Content-Type": "image/jpeg" },
+          headers: { "apikey": SUPA_KEY, "Authorization": "Bearer " + SUPA_KEY, "Content-Type": "image/png" },
           body: blob
         }).then(function (res) { if (!res.ok) avatarPath = null; });
       }).catch(function () { avatarPath = null; });
