@@ -2032,7 +2032,9 @@
         vid.controls = true;
         vid.playsInline = true;
         vid.preload = "metadata";
-        vid.src = gbMediaUrl(r.media_path);
+        // #t=0.1: Browser springt auf Frame 1 und zeigt ihn als Vorschau
+        // (sonst bleibt das Video bis zum Play-Tipp schwarz)
+        vid.src = gbMediaUrl(r.media_path) + "#t=0.1";
         card.appendChild(vid);
       }
       feed.appendChild(card);
