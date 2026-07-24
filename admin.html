@@ -62,8 +62,10 @@
   <button id="selAllBtn">Alle an/abwählen</button>
   <button class="danger" id="delBtn" disabled>Ausgewählte löschen</button>
   <button class="danger" id="purgeBtn">Ordner komplett leeren</button>
+  <button id="archiveBtn">📦 Ordner ins Archiv</button>
+  <button id="zipBtn">⬇️ Alles als ZIP</button>
 </div>
-<div id="status">Passwort eingeben und „Fotos laden".</div>
+<div id="status">Passwort eingeben und „Fotos laden". Archivierte Ordner lassen sich über „archiv/&lt;name&gt;" wieder laden.</div>
 <div id="grid"></div>
 
 <script>
@@ -179,6 +181,125 @@
         loadPhotos();
       })
       .catch(function (e) { status("Fehler: " + e.message); });
+  });
+
+  $("archiveBtn").addEventListener("click", function () {
+    if (!slug()) { status("Bitte Event-Ordner angeben."); return; }
+    if (slug().indexOf("archiv") === 0) { status("Ist schon im Archiv."); return; }
+    if (!confirm("Ordner „" + slug() + "“ ins Archiv verschieben? Er verschwindet damit aus Galerie & Slideshow, bleibt aber unter archiv/" + slug() + " erhalten.")) return;
+    status("Verschiebe ins Archiv …");
+    adminCall({ action: "archive", prefix: slug() })
+      .then(function (j) {
+        status(j.moved + " Datei(en) → " + j.target + " verschoben.");
+        loadPhotos();
+      })
+      .catch(function (e) { status("Fehler: " + e.message); });
+  });
+
+  // ---------- ZIP-Download (beste Qualitaet: print/-Master, sonst Webversion) ----------
+  // Minimaler ZIP-Writer (STORE, ohne Kompression — JPEGs sind schon komprimiert).
+  var CRC_TABLE = (function () {
+    var t = [], c, n, k;
+    for (n = 0; n < 256; n++) {
+      c = n;
+      for (k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      t[n] = c >>> 0;
+    }
+    return t;
+  })();
+
+  function crc32(u8) {
+    var c = 0xFFFFFFFF;
+    for (var i = 0; i < u8.length; i++) c = CRC_TABLE[(c ^ u8[i]) & 0xFF] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  function buildZip(entries) {
+    var parts = [], central = [], offset = 0;
+    entries.forEach(function (e) {
+      var nameBytes = new TextEncoder().encode(e.name);
+      var crc = crc32(e.data);
+      var head = new DataView(new ArrayBuffer(30));
+      head.setUint32(0, 0x04034b50, true);
+      head.setUint16(4, 20, true);      // version
+      head.setUint16(8, 0, true);       // method STORE
+      head.setUint32(14, crc, true);
+      head.setUint32(18, e.data.length, true);
+      head.setUint32(22, e.data.length, true);
+      head.setUint16(26, nameBytes.length, true);
+      parts.push(head.buffer, nameBytes, e.data);
+      var cd = new DataView(new ArrayBuffer(46));
+      cd.setUint32(0, 0x02014b50, true);
+      cd.setUint16(4, 20, true); cd.setUint16(6, 20, true);
+      cd.setUint16(10, 0, true);
+      cd.setUint32(16, crc, true);
+      cd.setUint32(20, e.data.length, true);
+      cd.setUint32(24, e.data.length, true);
+      cd.setUint16(28, nameBytes.length, true);
+      cd.setUint32(42, offset, true);
+      central.push(cd.buffer, nameBytes);
+      offset += 30 + nameBytes.length + e.data.length;
+    });
+    var cdSize = central.reduce(function (s, b) { return s + (b.byteLength || b.length); }, 0);
+    var eocd = new DataView(new ArrayBuffer(22));
+    eocd.setUint32(0, 0x06054b50, true);
+    eocd.setUint16(8, entries.length, true);
+    eocd.setUint16(10, entries.length, true);
+    eocd.setUint32(12, cdSize, true);
+    eocd.setUint32(16, offset, true);
+    return new Blob(parts.concat(central, [eocd.buffer]), { type: "application/zip" });
+  }
+
+  $("zipBtn").addEventListener("click", function () {
+    if (!slug()) { status("Bitte Event-Ordner angeben."); return; }
+    var base = slug();
+    status("Suche Dateien …");
+    // print/-Master bevorzugen, sonst Webversion
+    function list(dir) {
+      return fetch(SUPA_URL + "/storage/v1/object/list/" + BUCKET, {
+        method: "POST",
+        headers: { "apikey": ANON, "Authorization": "Bearer " + ANON, "Content-Type": "application/json" },
+        body: JSON.stringify({ prefix: dir + "/", limit: 1000, sortBy: { column: "name", order: "asc" } })
+      }).then(function (r) { return r.ok ? r.json() : []; });
+    }
+    Promise.all([list(base), list(base + "/print")]).then(function (res) {
+      var webs = res[0].filter(function (r) { return /\.jpg$/i.test(r.name || ""); });
+      var prints = {};
+      res[1].forEach(function (r) { if (/\.jpg$/i.test(r.name || "")) prints[r.name] = true; });
+      var files = webs.map(function (r) {
+        var usePrint = prints[r.name];
+        return {
+          name: r.name,
+          path: base + (usePrint ? "/print/" : "/") + r.name
+        };
+      });
+      if (!files.length) { status("Keine Fotos gefunden."); return; }
+      var entries = [], done = 0;
+      function next(i) {
+        if (i >= files.length) {
+          status("Baue ZIP …");
+          var blob = buildZip(entries);
+          var a = document.createElement("a");
+          a.href = URL.createObjectURL(blob);
+          a.download = base.replace(/\//g, "_") + "_archiv.zip";
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          status(entries.length + " Foto(s) als ZIP geladen (" + Math.round(blob.size / 1048576) + " MB).");
+          return;
+        }
+        fetch(SUPA_URL + "/storage/v1/object/public/" + BUCKET + "/" + files[i].path)
+          .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.arrayBuffer(); })
+          .then(function (buf) {
+            entries.push({ name: files[i].name, data: new Uint8Array(buf) });
+            done++;
+            status("Lade " + done + "/" + files.length + " …");
+            next(i + 1);
+          })
+          .catch(function () { next(i + 1); }); // einzelne Fehler ueberspringen
+      }
+      next(0);
+    });
   });
 
   $("purgeBtn").addEventListener("click", function () {
