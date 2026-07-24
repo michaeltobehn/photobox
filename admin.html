@@ -13,21 +13,31 @@
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg); color: var(--txt); min-height: 100vh; padding: 24px;
+    background: var(--bg); color: var(--txt); min-height: 100vh;
+    padding: 24px 24px 110px; /* Platz fuer die Auswahl-Leiste unten */
   }
-  header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
   h1 { font-size: 1.15rem; font-weight: 600; }
-  p.sub { color: var(--mut); font-size: 0.83rem; margin-top: 2px; }
+  .sub { color: var(--mut); font-size: 0.85rem; margin-top: 3px; }
   input {
     background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
     color: var(--txt); font-size: 0.9rem; padding: 8px 12px; outline: none;
   }
   input:focus { border-color: var(--acc); }
-  /* Login-Gate */
-  #loginView {
-    min-height: calc(100vh - 48px);
-    display: flex; align-items: center; justify-content: center;
+  button {
+    background: #262a31; border: 1px solid var(--line); border-radius: 8px;
+    color: var(--txt); font-size: 0.88rem; font-weight: 500;
+    padding: 8px 14px; cursor: pointer; white-space: nowrap;
   }
+  button:hover { border-color: #3a404b; }
+  button.primary { background: var(--acc); border-color: var(--acc); color: #fff; }
+  button.dngr { color: var(--red); }
+  button.dngr:hover { border-color: var(--red); }
+  button.quiet { background: none; border-color: transparent; color: var(--mut); }
+  button.quiet:hover { color: var(--txt); border-color: var(--line); }
+  .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+  /* Login-Gate */
+  #loginView { min-height: calc(100vh - 134px); display: flex; align-items: center; justify-content: center; }
   .loginCard {
     background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
     padding: 32px 28px; width: min(92vw, 360px);
@@ -36,31 +46,21 @@
   .loginCard input { width: 100%; text-align: center; font-size: 1rem; padding: 11px 12px; }
   .loginCard button { width: 100%; padding: 11px; font-size: 0.95rem; }
   #loginErr { color: var(--red); font-size: 0.85rem; min-height: 1.2em; }
-  #logoutBtn { font-size: 0.8rem; padding: 6px 12px; color: var(--mut); }
-  .panel {
-    background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
-    padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px;
+
+  /* Kopf */
+  header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+
+  /* Hinweis-Chip (nur sichtbar, wenn es etwas zu melden gibt) */
+  #status {
+    display: none; margin: 0 0 12px;
+    background: rgba(79,124,255,0.12); border: 1px solid rgba(79,124,255,0.35);
+    color: var(--txt); border-radius: 8px; padding: 8px 12px; font-size: 0.85rem;
   }
-  .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .lbl {
-    color: var(--mut); font-size: 0.72rem; text-transform: uppercase;
-    letter-spacing: 0.06em; margin-right: 2px; white-space: nowrap;
-  }
-  .divider { width: 1px; align-self: stretch; background: var(--line); margin: 0 8px; }
-  button {
-    background: #262a31; border: 1px solid var(--line); border-radius: 8px;
-    color: var(--txt); font-size: 0.88rem; font-weight: 500;
-    padding: 8px 14px; cursor: pointer;
-  }
-  button:hover { border-color: #3a404b; }
-  button.primary { background: var(--acc); border-color: var(--acc); color: #fff; }
-  button.dngr { color: var(--red); }
-  button.dngr:hover { border-color: var(--red); }
-  button:disabled { opacity: 0.35; cursor: default; }
-  #status { color: var(--mut); font-size: 0.85rem; margin: 2px 0 12px; min-height: 1.2em; }
-  #grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px;
-  }
+  #status.show { display: block; }
+  #status.err { background: rgba(229,72,77,0.1); border-color: rgba(229,72,77,0.4); }
+
+  /* Foto-Raster */
+  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
   .ph {
     position: relative; border-radius: 8px; overflow: hidden; aspect-ratio: 1;
     background: #20242b; cursor: pointer; border: 1px solid var(--line);
@@ -78,6 +78,26 @@
     position: absolute; bottom: 0; left: 0; right: 0; font-size: 0.63rem;
     background: rgba(10,12,16,0.65); padding: 3px 6px; color: #c8cdd6;
   }
+  #empty { color: var(--mut); font-size: 0.9rem; padding: 40px 0; text-align: center; }
+
+  /* Auswahl-Leiste: erscheint nur, wenn Fotos markiert sind */
+  #selBar {
+    position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+    display: none; align-items: center; gap: 10px;
+    background: var(--panel); border: 1px solid var(--acc); border-radius: 12px;
+    padding: 10px 14px; box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+    max-width: calc(100vw - 32px);
+  }
+  #selBar.show { display: flex; }
+  #selCount { font-size: 0.9rem; font-weight: 600; white-space: nowrap; }
+
+  /* Event-Werkzeuge (selten gebraucht, darum eingeklappt) */
+  details {
+    margin-top: 26px; border-top: 1px solid var(--line); padding-top: 14px;
+  }
+  summary { color: var(--mut); font-size: 0.85rem; cursor: pointer; user-select: none; }
+  details .row { margin-top: 12px; }
+  details .hint { color: var(--mut); font-size: 0.78rem; margin-top: 8px; }
 </style>
 </head>
 <body>
@@ -92,36 +112,43 @@
 </div>
 
 <div id="toolView" style="display:none">
-<header>
-  <div>
-    <h1>Fotobox Admin</h1>
-    <p class="sub">Löschen ist endgültig (inkl. Druckkarte). Archivieren verschiebt nach archiv/ — raus aus Galerie &amp; Slideshow, nichts geht verloren.</p>
-  </div>
-  <button id="logoutBtn">Abmelden</button>
-</header>
+  <header>
+    <div>
+      <h1>Fotobox Admin</h1>
+      <div class="sub" id="meta">Lade …</div>
+    </div>
+    <div class="row">
+      <button class="quiet" id="reloadBtn">↻ Aktualisieren</button>
+      <button class="quiet" id="selAllBtn">Alle auswählen</button>
+      <button class="quiet" id="archViewBtn">Archiv ansehen</button>
+      <button class="quiet" id="logoutBtn">Abmelden</button>
+    </div>
+  </header>
 
-<div class="panel">
-  <div class="row">
-    <span class="lbl">Event</span>
-    <input id="slug" type="text" value="sabrinas-geburtstag" style="width:220px">
-    <button class="primary" id="loadBtn">Laden</button>
-    <button id="selAllBtn">Alle an/abwählen</button>
-  </div>
-  <div class="row">
-    <span class="lbl">Auswahl</span>
-    <button id="archiveSelBtn" disabled>Ins Archiv</button>
-    <button class="dngr" id="delBtn" disabled>Löschen</button>
-    <span class="divider"></span>
-    <span class="lbl">Ganzes Event</span>
-    <button id="zipBtn">Als ZIP sichern</button>
-    <button id="archiveBtn">Ins Archiv</button>
-    <button class="dngr" id="purgeBtn">Löschen</button>
-  </div>
+  <div id="status"></div>
+  <div id="grid"></div>
+
+  <details>
+    <summary>Event-Werkzeuge (Archiv, ZIP, anderes Event …)</summary>
+    <div class="row">
+      <input id="slug" type="text" value="sabrinas-geburtstag" style="width:230px">
+      <button id="loadBtn">Öffnen</button>
+    </div>
+    <div class="row">
+      <button id="zipBtn">Alles als ZIP sichern</button>
+      <button id="archiveBtn">Ganzes Event ins Archiv</button>
+      <button class="dngr" id="purgeBtn">Ganzes Event löschen</button>
+    </div>
+    <p class="hint">Tipp: Archivierte Fotos ansehen → oben „archiv/sabrinas-geburtstag" öffnen. Löschen ist endgültig (inkl. Druckkarten); Archivieren verschiebt nur — nichts geht verloren.</p>
+  </details>
 </div>
 
-<div id="status">Archiv ansehen: Event-Feld auf archiv/&lt;name&gt; stellen.</div>
-<div id="grid"></div>
-</div><!-- /toolView -->
+<div id="selBar">
+  <span id="selCount">0 ausgewählt</span>
+  <button class="quiet" id="clearSelBtn">Aufheben</button>
+  <button id="archiveSelBtn">Ins Archiv</button>
+  <button class="dngr" id="delBtn">Löschen</button>
+</div>
 
 <script>
 (function () {
@@ -132,8 +159,8 @@
   var BUCKET = "fotobox";
 
   var $ = function (id) { return document.getElementById(id); };
-  var photos = [];   // { path, url, ts, sel }
-  var currentPw = ""; // gesetzt nach erfolgreichem Login
+  var photos = [];
+  var currentPw = "";
 
   // ---------- Login-Gate ----------
   function tryLogin(pw, silent) {
@@ -185,21 +212,44 @@
     location.reload();
   });
 
-  function status(msg) { $("status").textContent = msg; }
+  // ---------- Status & Meta ----------
+  function status(msg, isErr) {
+    var el = $("status");
+    el.textContent = msg || "";
+    el.className = msg ? ("show" + (isErr ? " err" : "")) : "";
+  }
+
+  function inArchive() { return slug().indexOf("archiv/") === 0 || slug() === "archiv"; }
+
+  function updateMeta() {
+    var t = new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+    var label = inArchive() ? "Archiv „" + slug().replace(/^archiv\//, "") + "“" : "Event „" + slug() + "“";
+    $("meta").textContent = label + " · " + photos.length + " Foto(s) · Stand " + t;
+    $("archViewBtn").textContent = inArchive() ? "← Zurück zum Event" : "Archiv ansehen";
+  }
 
   function slug() { return ($("slug").value || "").trim().replace(/\/+$/, ""); }
 
-  function updateDelBtn() {
-    var n = photos.filter(function (p) { return p.sel; }).length;
-    $("delBtn").disabled = !n;
-    $("delBtn").textContent = n ? "Löschen (" + n + ")" : "Löschen";
-    $("archiveSelBtn").disabled = !n;
-    $("archiveSelBtn").textContent = n ? "Ins Archiv (" + n + ")" : "Ins Archiv";
+  // ---------- Auswahl ----------
+  function selected() { return photos.filter(function (p) { return p.sel; }); }
+
+  function updateSelBar() {
+    var n = selected().length;
+    $("selBar").className = n ? "show" : "";
+    $("selCount").textContent = n + " ausgewählt";
+    $("selAllBtn").textContent = (photos.length && n === photos.length) ? "Auswahl aufheben" : "Alle auswählen";
+    // Im Archiv gibt es kein "Ins Archiv" — dort nur endgueltig loeschen
+    $("archiveSelBtn").style.display = inArchive() ? "none" : "";
   }
 
   function render() {
     var grid = $("grid");
     grid.innerHTML = "";
+    if (!photos.length) {
+      grid.innerHTML = '<div id="empty">Keine Fotos in diesem Event.</div>';
+      updateSelBar();
+      return;
+    }
     photos.forEach(function (p) {
       var d = document.createElement("div");
       d.className = "ph" + (p.sel ? " sel" : "");
@@ -220,12 +270,11 @@
       });
       grid.appendChild(d);
     });
-    updateDelBtn();
+    updateSelBar();
   }
 
   function loadPhotos() {
-    if (!slug()) { status("Bitte Event angeben."); return; }
-    status("Lade …");
+    if (!slug()) { status("Bitte Event angeben.", true); return; }
     fetch(SUPA_URL + "/storage/v1/object/list/" + BUCKET, {
       method: "POST",
       headers: { "apikey": ANON, "Authorization": "Bearer " + ANON, "Content-Type": "application/json" },
@@ -243,10 +292,10 @@
           sel: false
         };
       });
-      status(photos.length + " Foto(s) in „" + slug() + "“.");
+      updateMeta();
       render();
     }).catch(function (e) {
-      status("Laden fehlgeschlagen: " + e.message);
+      status("Laden fehlgeschlagen: " + e.message, true);
     });
   }
 
@@ -264,7 +313,16 @@
     });
   }
 
-  $("loadBtn").addEventListener("click", loadPhotos);
+  $("reloadBtn").addEventListener("click", function () { status(""); loadPhotos(); });
+
+  // Umschalter: Event <-> zugehoeriges Archiv
+  $("archViewBtn").addEventListener("click", function () {
+    var s = slug();
+    $("slug").value = s.indexOf("archiv/") === 0 ? s.slice(7) : "archiv/" + s;
+    status("");
+    loadPhotos();
+  });
+  $("loadBtn").addEventListener("click", function () { status(""); loadPhotos(); });
 
   $("selAllBtn").addEventListener("click", function () {
     var allSel = photos.length && photos.every(function (p) { return p.sel; });
@@ -272,47 +330,51 @@
     render();
   });
 
+  $("clearSelBtn").addEventListener("click", function () {
+    photos.forEach(function (p) { p.sel = false; });
+    render();
+  });
+
   $("delBtn").addEventListener("click", function () {
-    var sel = photos.filter(function (p) { return p.sel; });
+    var sel = selected();
     if (!sel.length) return;
     if (!confirm(sel.length + " Foto(s) endgültig löschen (inkl. Druckkarten)?")) return;
-    status("Lösche …");
+    status("Lösche " + sel.length + " Foto(s) …");
     adminCall({ action: "delete", paths: sel.map(function (p) { return p.path; }) })
       .then(function (j) {
         status((j.deleted || []).length + " Datei(en) gelöscht.");
         loadPhotos();
       })
-      .catch(function (e) { status("Fehler: " + e.message); });
+      .catch(function (e) { status("Fehler: " + e.message, true); });
   });
 
   $("archiveSelBtn").addEventListener("click", function () {
-    var sel = photos.filter(function (p) { return p.sel; });
+    var sel = selected();
     if (!sel.length) return;
     if (!confirm(sel.length + " Foto(s) ins Archiv verschieben?")) return;
-    status("Verschiebe ins Archiv …");
+    status("Verschiebe " + sel.length + " Foto(s) ins Archiv …");
     adminCall({ action: "archive", paths: sel.map(function (p) { return p.path; }) })
       .then(function (j) {
         status(j.moved + " Datei(en) ins Archiv verschoben.");
         loadPhotos();
       })
-      .catch(function (e) { status("Fehler: " + e.message); });
+      .catch(function (e) { status("Fehler: " + e.message, true); });
   });
 
   $("archiveBtn").addEventListener("click", function () {
-    if (!slug()) { status("Bitte Event angeben."); return; }
-    if (slug().indexOf("archiv") === 0) { status("Ist schon im Archiv."); return; }
+    if (!slug()) { status("Bitte Event angeben.", true); return; }
+    if (slug().indexOf("archiv") === 0) { status("Ist schon im Archiv.", true); return; }
     if (!confirm("Ganzes Event „" + slug() + "“ ins Archiv verschieben?")) return;
-    status("Verschiebe ins Archiv …");
+    status("Verschiebe Event ins Archiv …");
     adminCall({ action: "archive", prefix: slug() })
       .then(function (j) {
         status(j.moved + " Datei(en) → " + j.target + " verschoben.");
         loadPhotos();
       })
-      .catch(function (e) { status("Fehler: " + e.message); });
+      .catch(function (e) { status("Fehler: " + e.message, true); });
   });
 
   // ---------- ZIP-Download (beste Qualitaet: print/-Master, sonst Webversion) ----------
-  // Minimaler ZIP-Writer (STORE, ohne Kompression — JPEGs sind schon komprimiert).
   var CRC_TABLE = (function () {
     var t = [], c, n, k;
     for (n = 0; n < 256; n++) {
@@ -366,7 +428,7 @@
   }
 
   $("zipBtn").addEventListener("click", function () {
-    if (!slug()) { status("Bitte Event angeben."); return; }
+    if (!slug()) { status("Bitte Event angeben.", true); return; }
     var base = slug();
     status("Suche Dateien …");
     function list(dir) {
@@ -383,7 +445,7 @@
       var files = webs.map(function (r) {
         return { name: r.name, path: base + (prints[r.name] ? "/print/" : "/") + r.name };
       });
-      if (!files.length) { status("Keine Fotos gefunden."); return; }
+      if (!files.length) { status("Keine Fotos gefunden.", true); return; }
       var entries = [], done = 0;
       function next(i) {
         if (i >= files.length) {
@@ -395,7 +457,7 @@
           document.body.appendChild(a);
           a.click();
           a.remove();
-          status(entries.length + " Foto(s) als ZIP geladen (" + Math.round(blob.size / 1048576) + " MB).");
+          status(entries.length + " Foto(s) als ZIP gesichert (" + Math.round(blob.size / 1048576) + " MB).");
           return;
         }
         fetch(SUPA_URL + "/storage/v1/object/public/" + BUCKET + "/" + files[i].path)
@@ -413,7 +475,7 @@
   });
 
   $("purgeBtn").addEventListener("click", function () {
-    if (!slug()) { status("Bitte Event angeben."); return; }
+    if (!slug()) { status("Bitte Event angeben.", true); return; }
     if (!confirm("WIRKLICH das komplette Event „" + slug() + "“ löschen (alle Fotos + Druckkarten)?")) return;
     status("Lösche Event …");
     adminCall({ action: "purge", prefix: slug() })
@@ -421,11 +483,10 @@
         status(j.deletedCount + " Datei(en) gelöscht — Event ist leer.");
         loadPhotos();
       })
-      .catch(function (e) { status("Fehler: " + e.message); });
+      .catch(function (e) { status("Fehler: " + e.message, true); });
   });
 
-  // Boot: gespeichertes Passwort still validieren — gueltig -> direkt ins
-  // Tool, ungueltig/fehlend -> Login-Gate.
+  // Boot: gespeichertes Passwort still validieren
   var savedPw = null;
   try { savedPw = localStorage.getItem("fotobox_admin_pw"); } catch (e) {}
   if (savedPw) tryLogin(savedPw, true);
