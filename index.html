@@ -329,6 +329,62 @@
   }
   .gthumb { border-radius: 10px; overflow: hidden; aspect-ratio: 1; background: #241238; cursor: pointer; }
   .gthumb img { width: 100%; height: 100%; object-fit: cover; }
+  /* Selfie-Picker im Check-in */
+  #avatarPick {
+    width: 88px; height: 88px; border-radius: 50%;
+    border: 2px dashed rgba(255,255,255,0.4); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden; background: rgba(255,255,255,0.06);
+  }
+  #avatarPick img { width: 100%; height: 100%; object-fit: cover; display: none; }
+  #avatarPick .cam { font-size: 1.8rem; }
+  .avatarHint { color: #cbb8e8; font-size: 0.8rem; margin-top: -14px; }
+  #onbStatus { color: #ffd6e4; font-size: 0.85rem; min-height: 1.1em; }
+
+  /* Avatar-Leiste (Wer ist eingecheckt) */
+  .avStrip {
+    display: flex; gap: 14px; overflow-x: auto; -webkit-overflow-scrolling: touch;
+    padding: 4px 16px 12px;
+  }
+  .avt { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 64px; }
+  .avt .pic {
+    width: 56px; height: 56px; border-radius: 50%; object-fit: cover;
+    border: 2px solid var(--pink); background: #241238; display: block;
+  }
+  .avt .ini {
+    width: 56px; height: 56px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.3); background: #3a2a55; color: #fff;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 1.2rem;
+  }
+  .avt .nm {
+    color: #cbb8e8; font-size: 0.7rem; max-width: 72px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* Gastgeberin-Ansicht */
+  #hostWrap {
+    flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    display: none; padding: calc(env(safe-area-inset-top, 0px) + 20px) 16px calc(env(safe-area-inset-bottom, 0px) + 20px);
+  }
+  #hostWrap h1 {
+    font-family: "Inter", -apple-system, sans-serif; font-weight: 700;
+    font-size: clamp(2rem, 8vw, 3.4rem); line-height: 1.12;
+    background: linear-gradient(90deg, var(--pink), var(--yellow), var(--cyan));
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  #hostWrap p.hsub { color: #e3d7f7; font-size: 1.05rem; margin: 8px 0 20px; }
+  #hostWrap h3 {
+    font-family: "Inter", -apple-system, sans-serif; font-weight: 700;
+    font-size: 1.05rem; color: #fff; margin: 22px 0 10px;
+  }
+  #hostGrid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 8px;
+  }
+  #hostAvatars { padding: 4px 0 6px; }
+
   /* Gaeste-Tabs: Fotos | Gaestebuch */
   #guestTabs { display: flex; gap: 8px; padding: 0 16px 10px; }
   .gtab {
@@ -471,8 +527,15 @@
     <div id="gContent">
       <h1 id="guestTitle">Sabrinas 40. Geburtstag</h1>
       <p>Sag uns kurz, wer du bist – danach siehst du alle Fotos der Party live auf deinem Handy.</p>
+      <label id="avatarPick" for="guestSelfie">
+        <img id="avatarPreview" alt="">
+        <span class="cam">📷</span>
+      </label>
+      <span class="avatarHint">Selfie fürs Gäste-Board (optional)</span>
+      <input id="guestSelfie" type="file" accept="image/*" capture="user" style="display:none">
       <input id="guestName" type="text" placeholder="Dein Name" maxlength="40" autocomplete="name">
       <button class="bigBtn" id="guestGoBtn">Los geht's 🎉</button>
+      <div id="onbStatus"></div>
     </div>
   </div>
   <div id="guestGalleryWrap">
@@ -480,6 +543,7 @@
       <h2 id="guestHi">🖼️ Galerie</h2>
       <span id="guestCount"></span>
     </div>
+    <div id="avatarStrip" class="avStrip"></div>
     <div id="guestTabs">
       <button class="gtab sel" data-tab="fotos">Fotos</button>
       <button class="gtab" data-tab="gb">💬 Gästebuch</button>
@@ -498,6 +562,17 @@
       </div>
       <div id="gbFeed"><div id="gbEmpty">Noch keine Einträge – sei die/der Erste! 💬</div></div>
     </div>
+  </div>
+
+  <!-- Gastgeberin-Ansicht (Check-in-Name: sabrinaf) -->
+  <div id="hostWrap">
+    <h1>Hallo Sabrina,</h1>
+    <p class="hsub">alle Eindrücke Deiner Party hier! Schau, wer Dir einen Gruß hinterlassen hat.</p>
+    <div id="hostGb"></div>
+    <h3>Eingecheckt</h3>
+    <div id="hostAvatars" class="avStrip"></div>
+    <h3>Galerie</h3>
+    <div id="hostGrid"></div>
   </div>
 </div>
 
@@ -1562,10 +1637,78 @@
     gSlug = slug;
     gTitle = title || slug.replace(/-/g, " ");
     show("guest");
-    var savedName = null;
-    try { savedName = localStorage.getItem("fotobox_gast_name"); } catch (e) {}
-    if (savedName) openGuestGallery(savedName);
+    var savedName = null, isHost = false;
+    try {
+      savedName = localStorage.getItem("fotobox_gast_name");
+      isHost = localStorage.getItem("fotobox_host") === "1";
+    } catch (e) {}
+    if (isHost) openHost();
+    else if (savedName) openGuestGallery(savedName);
     else startGuestBg();
+  }
+
+  // ---------- Avatar-Leiste (alle eingecheckten Gaeste) ----------
+  var avTimer = null;
+
+  function renderAvatars(rows, containerId) {
+    var box = $(containerId);
+    box.innerHTML = "";
+    if (!rows.length) {
+      box.innerHTML = '<span style="color:#9f8cc4;font-size:0.85rem">Noch niemand eingecheckt.</span>';
+      return;
+    }
+    rows.forEach(function (g) {
+      var d = document.createElement("div");
+      d.className = "avt";
+      if (g.avatar_path) {
+        var img = document.createElement("img");
+        img.className = "pic";
+        img.loading = "lazy";
+        img.src = SUPA_URL + "/storage/v1/object/public/" + SUPA_BUCKET + "/" + g.avatar_path;
+        d.appendChild(img);
+      } else {
+        var ini = document.createElement("div");
+        ini.className = "ini";
+        ini.textContent = (g.name || "?").trim().charAt(0).toUpperCase();
+        d.appendChild(ini);
+      }
+      var nm = document.createElement("div");
+      nm.className = "nm";
+      nm.textContent = g.name || "Gast";
+      d.appendChild(nm);
+      box.appendChild(d);
+    });
+  }
+
+  function loadAvatars(containerId) {
+    fetch(SUPA_URL + "/rest/v1/fotobox_gaeste?event_slug=eq." + encodeURIComponent(gSlug) +
+          "&select=name,avatar_path&order=created_at.asc&limit=300", { headers: restHeaders() })
+      .then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (rows) { renderAvatars(rows, containerId); })
+      .catch(function () {});
+  }
+
+  // ---------- Gastgeberin-Ansicht ----------
+  var hostTimer = null, hostUrlsJson = "";
+
+  function hostRefresh() {
+    gbLoad("hostGb");
+    loadAvatars("hostAvatars");
+    listEventPhotos(gSlug, "desc").then(function (urls) {
+      var j = urls.join("|");
+      if (j === hostUrlsJson) return;
+      hostUrlsJson = j;
+      renderPhotoGrid(urls, "hostGrid");
+    }).catch(function () {});
+  }
+
+  function openHost() {
+    stopGuestBg();
+    $("guestOnboard").style.display = "none";
+    $("guestGalleryWrap").style.display = "none";
+    $("hostWrap").style.display = "block";
+    hostRefresh();
+    if (!hostTimer) hostTimer = setInterval(hostRefresh, 15000);
   }
 
   function openGuestGallery(name) {
@@ -1575,6 +1718,8 @@
     $("guestHi").textContent = "Hi " + name + "! 👋";
     guestPoll();
     if (!gTimer) gTimer = setInterval(guestPoll, G_POLL_MS);
+    loadAvatars("avatarStrip");
+    if (!avTimer) avTimer = setInterval(function () { loadAvatars("avatarStrip"); }, 30000);
     fetchGuestCount();
   }
 
@@ -1586,27 +1731,35 @@
     }).catch(function () { /* naechster Poll versucht es wieder */ });
   }
 
-  function renderGuestGrid() {
-    var grid = $("guestGrid");
+  function openGuestViewer(u) {
+    gViewUrl = u;
+    $("guestViewImg").src = u;
+    $("guestView").classList.add("active");
+  }
+
+  function renderPhotoGrid(urls, containerId) {
+    var grid = $(containerId);
     grid.innerHTML = "";
-    if (!gUrls.length) {
-      grid.innerHTML = '<div id="guestEmpty">Es wird Zeit für das erste Foto, auf zur Fotobox</div>';
+    if (!urls.length) {
+      grid.innerHTML = containerId === "guestGrid"
+        ? '<div id="guestEmpty">Es wird Zeit für das erste Foto, auf zur Fotobox</div>'
+        : '<div style="color:#9f8cc4">Noch keine Fotos.</div>';
       return;
     }
-    gUrls.forEach(function (u) {
+    urls.forEach(function (u) {
       var t = document.createElement("div");
       t.className = "gthumb";
       var img = document.createElement("img");
       img.loading = "lazy";
       img.src = u;
       t.appendChild(img);
-      t.addEventListener("click", function () {
-        gViewUrl = u;
-        $("guestViewImg").src = u;
-        $("guestView").classList.add("active");
-      });
+      t.addEventListener("click", function () { openGuestViewer(u); });
       grid.appendChild(t);
     });
+  }
+
+  function renderGuestGrid() {
+    renderPhotoGrid(gUrls, "guestGrid");
   }
 
   function fetchGuestCount() {
@@ -1624,22 +1777,89 @@
     }).catch(function () {});
   }
 
+  // ---------- Check-in mit optionalem Selfie ----------
+  var guestSelfieFile = null;
+
+  $("guestSelfie").addEventListener("change", function () {
+    guestSelfieFile = this.files && this.files[0] ? this.files[0] : null;
+    var prev = $("avatarPreview");
+    var cam = document.querySelector("#avatarPick .cam");
+    if (guestSelfieFile) {
+      prev.src = URL.createObjectURL(guestSelfieFile);
+      prev.style.display = "block";
+      cam.style.display = "none";
+    } else {
+      prev.style.display = "none";
+      cam.style.display = "";
+    }
+  });
+
+  // Selfie auf 400x400 (cover) verkleinern — klein, schnell, rund genug
+  function resizeAvatar(file) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () {
+        var c = document.createElement("canvas");
+        c.width = 400; c.height = 400;
+        drawCover(c.getContext("2d"), img, 0, 0, 400, 400);
+        URL.revokeObjectURL(url);
+        c.toBlob(function (b) {
+          if (b) resolve(b); else reject(new Error("Bild nicht lesbar"));
+        }, "image/jpeg", 0.85);
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("Bild nicht lesbar")); };
+      img.src = url;
+    });
+  }
+
   $("guestGoBtn").addEventListener("click", function () {
     var name = ($("guestName").value || "").trim();
     if (!name) { $("guestName").focus(); return; }
+
+    // Codewort der Gastgeberin -> eigene Ansicht, kein Gaeste-Eintrag
+    if (name.toLowerCase() === "sabrinaf") {
+      try { localStorage.setItem("fotobox_host", "1"); } catch (e) {}
+      openHost();
+      return;
+    }
+
+    var btn = $("guestGoBtn");
+    btn.disabled = true;
+    $("onbStatus").textContent = guestSelfieFile ? "Lade Selfie hoch …" : "";
     try { localStorage.setItem("fotobox_gast_name", name); } catch (e) {}
-    // Eintrag ist Beiwerk — die Galerie darf auch bei Fehler aufgehen
-    fetch(SUPA_URL + "/rest/v1/fotobox_gaeste", {
-      method: "POST",
-      headers: {
-        "apikey": SUPA_KEY,
-        "Authorization": "Bearer " + SUPA_KEY,
-        "Content-Type": "application/json",
-        "Prefer": "return=minimal"
-      },
-      body: JSON.stringify({ event_slug: gSlug, name: name })
-    }).then(function () { fetchGuestCount(); }).catch(function () {});
-    openGuestGallery(name);
+
+    var avatarPath = null;
+    var prep = Promise.resolve();
+    if (guestSelfieFile) {
+      // Selfie ist optional: jeder Fehler hier blockiert den Check-in nicht
+      prep = resizeAvatar(guestSelfieFile).then(function (blob) {
+        avatarPath = gSlug + "/avatare/" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + ".jpg";
+        return fetch(SUPA_URL + "/storage/v1/object/" + SUPA_BUCKET + "/" + avatarPath, {
+          method: "POST",
+          headers: { "apikey": SUPA_KEY, "Authorization": "Bearer " + SUPA_KEY, "Content-Type": "image/jpeg" },
+          body: blob
+        }).then(function (res) { if (!res.ok) avatarPath = null; });
+      }).catch(function () { avatarPath = null; });
+    }
+
+    prep.then(function () {
+      return fetch(SUPA_URL + "/rest/v1/fotobox_gaeste", {
+        method: "POST",
+        headers: {
+          "apikey": SUPA_KEY,
+          "Authorization": "Bearer " + SUPA_KEY,
+          "Content-Type": "application/json",
+          "Prefer": "return=minimal"
+        },
+        body: JSON.stringify({ event_slug: gSlug, name: name, avatar_path: avatarPath })
+      }).catch(function () {});
+    }).then(function () {
+      btn.disabled = false;
+      $("onbStatus").textContent = "";
+      fetchGuestCount();
+      openGuestGallery(name);
+    });
   });
 
   $("gCloseBtn").addEventListener("click", function () {
@@ -1663,7 +1883,7 @@
 
   // ---------- Gaestebuch (Text + Foto/Video, fuer alle sichtbar) ----------
   var GB_POLL_MS = 20000;
-  var gbTimer = null, gbFile = null, gbBusy = false, gbLastJson = "";
+  var gbTimer = null, gbFile = null, gbBusy = false, gbLast = {};
   var GB_REST = SUPA_URL + "/rest/v1/fotobox_gaestebuch";
   var GB_EXT = {
     "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/heic": "heic",
@@ -1686,8 +1906,8 @@
       $("guestGrid").style.display = gb ? "none" : "grid";
       $("gbPanel").style.display = gb ? "block" : "none";
       if (gb) {
-        gbLoad();
-        if (!gbTimer) gbTimer = setInterval(gbLoad, GB_POLL_MS);
+        gbLoad("gbFeed");
+        if (!gbTimer) gbTimer = setInterval(function () { gbLoad("gbFeed"); }, GB_POLL_MS);
       }
     });
   });
@@ -1696,11 +1916,13 @@
     return SUPA_URL + "/storage/v1/object/public/" + SUPA_BUCKET + "/" + path;
   }
 
-  function gbRender(rows) {
-    var feed = $("gbFeed");
+  function gbRender(rows, targetId) {
+    var feed = $(targetId);
     feed.innerHTML = "";
     if (!rows.length) {
-      feed.innerHTML = '<div id="gbEmpty">Noch keine Einträge – sei die/der Erste! 💬</div>';
+      feed.innerHTML = targetId === "hostGb"
+        ? '<div id="gbEmpty">Noch keine Grüße – die kommen bestimmt! 💬</div>'
+        : '<div id="gbEmpty">Noch keine Einträge – sei die/der Erste! 💬</div>';
       return;
     }
     rows.forEach(function (r) {
@@ -1738,7 +1960,8 @@
     });
   }
 
-  function gbLoad() {
+  function gbLoad(targetId) {
+    targetId = targetId || "gbFeed";
     fetch(GB_REST + "?event_slug=eq." + encodeURIComponent(gSlug) + "&order=created_at.desc&limit=200", {
       headers: restHeaders()
     }).then(function (r) {
@@ -1746,9 +1969,9 @@
       return r.json();
     }).then(function (rows) {
       var j = JSON.stringify(rows);
-      if (j === gbLastJson) return; // nichts Neues -> Feed nicht neu bauen
-      gbLastJson = j;
-      gbRender(rows);
+      if (j === gbLast[targetId]) return; // nichts Neues -> Feed nicht neu bauen
+      gbLast[targetId] = j;
+      gbRender(rows, targetId);
     }).catch(function () { /* naechster Poll versucht es wieder */ });
   }
 
@@ -1817,8 +2040,8 @@
       gbFile = null;
       $("gbFileName").textContent = "";
       $("gbStatus").textContent = "Eintrag gespeichert 🎉";
-      gbLastJson = "";
-      gbLoad();
+      gbLast = {};
+      gbLoad("gbFeed");
     }).catch(function (err) {
       $("gbStatus").textContent = "Fehler: " + err.message + " – nochmal versuchen?";
     }).then(function () {
