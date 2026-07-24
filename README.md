@@ -2,7 +2,7 @@
 
 DIY Party-Fotobox als Web-App (Tablet/iPad).
 
-Live: https://photobox-bice.vercel.app (Vercel, Auto-Deploy bei Push auf `main`).
+Live: https://sabrina.supermatt.agency (Vercel, Auto-Deploy bei Push auf `main`).
 
 ## QR-Sharing
 
@@ -16,7 +16,7 @@ Gäste das Foto aufs Handy laden. Die QR-Bilder rendert
 Live-Diashow aller Event-Fotos: Auf dem TV/Beamer-Gerät die Fotobox-URL
 öffnen, denselben Eventnamen eingeben und „📺 Slideshow für TV/Beamer"
 tippen — oder direkt ansteuern:
-`https://photobox-bice.vercel.app/#slideshow=<event-slug>&title=<Anzeigename>`
+`https://sabrina.supermatt.agency/#slideshow=<event-slug>&title=<Anzeigename>`
 (Slug = Eventname kleingeschrieben mit Bindestrichen, z. B.
 `annas-30-geburtstag`). Neue Fotos erscheinen automatisch nach wenigen
 Sekunden und werden in der Rotation vorgezogen. Beenden mit ✕ oder Escape.
@@ -24,7 +24,7 @@ Sekunden und werden in der Rotation vorgezogen. Beenden mit ✕ oder Escape.
 ## Gäste-Onboarding + Handy-Galerie
 
 Gäste scannen den Event-QR und landen auf
-`https://photobox-bice.vercel.app/#gast=sabrinas-40-geburtstag&title=Sabrinas%2040.%20Geburtstag`:
+`https://sabrina.supermatt.agency/#gast=sabrinas-40-geburtstag&title=Sabrinas%2040.%20Geburtstag`:
 kurzes Onboarding (Name → Tabelle `fotobox_gaeste` in Supabase, dort siehst
 du, wer dabei ist), danach eine Live-Galerie aller Event-Fotos (neueste
 zuerst, aktualisiert alle 12 s, Teilen/Sichern per iOS-Share). Die Galerie
