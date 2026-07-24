@@ -51,13 +51,10 @@
   }
   #startScreen p.sub { color: #cbb8e8; font-size: 1.1rem; max-width: 480px; }
   #eventName {
-    background: rgba(255,255,255,0.08);
-    border: 2px solid rgba(255,255,255,0.25);
-    border-radius: 14px;
+    background: none; border: none; border-radius: 14px;
     color: #fff; font-size: 1.3rem; text-align: center;
     padding: 14px 20px; width: min(90vw, 420px); outline: none;
   }
-  #eventName:focus { border-color: var(--pink); }
   .bigBtn {
     background: linear-gradient(135deg, var(--pink), var(--purple));
     border: none; border-radius: 999px; color: #fff;
@@ -502,7 +499,6 @@
 <!-- ===== Start ===== -->
 <div id="startScreen" class="screen active">
   <h1>📸 FOTOBOX</h1>
-  <p class="sub">Name der Party eingeben, Kamera starten, posieren – fertig!</p>
   <input id="eventName" type="text" value="Sabrinas Geburtstag" placeholder="Sabrinas Geburtstag" maxlength="40">
   <button class="bigBtn" id="startBtn">Kamera starten 🎉</button>
   <button class="pill" id="slideshowBtn">📺 Slideshow für TV/Beamer</button>
