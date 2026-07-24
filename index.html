@@ -1575,11 +1575,17 @@
   // sonst bootet die neue Route nie und der TV zeigt stumm die alte Ansicht.
   window.addEventListener("hashchange", function () { location.reload(); });
 
-  // ---------- Boot: #slideshow=<slug> (TV/Beamer) bzw. #gast=<slug> (Handy) ----------
+  // ---------- Boot ----------
+  // #slideshow=<slug>  -> TV/Beamer-Diashow
+  // #gast=<slug>       -> Gaeste-Home (explizites Event)
+  // /start             -> Fotobox-Bedienung (iPad; Vercel-Rewrite auf index.html)
+  // /                  -> Gaeste-Home fuers Standard-Event (Startseite der Domain)
   var ssBoot = parseSlideshowHash();
   var gBoot = parseGuestHash();
+  var isOperator = location.pathname.indexOf("/start") === 0 || location.protocol === "file:";
   if (ssBoot) startSlideshow(ssBoot.slug, ssBoot.title);
   else if (gBoot) startGuest(gBoot.slug, gBoot.title);
+  else if (!isOperator) startGuest(eventSlug(), eventName());
 })();
 </script>
 </body>
