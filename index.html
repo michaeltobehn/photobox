@@ -329,6 +329,54 @@
   }
   .gthumb { border-radius: 10px; overflow: hidden; aspect-ratio: 1; background: #241238; cursor: pointer; }
   .gthumb img { width: 100%; height: 100%; object-fit: cover; }
+  /* Gaeste-Tabs: Fotos | Gaestebuch */
+  #guestTabs { display: flex; gap: 8px; padding: 0 16px 10px; }
+  .gtab {
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 999px; color: #cbb8e8; padding: 8px 18px;
+    font-size: 0.95rem; cursor: pointer;
+  }
+  .gtab.sel { border-color: var(--pink); color: #fff; font-weight: 700; }
+
+  /* Gaestebuch */
+  #gbPanel {
+    flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: 0 16px calc(env(safe-area-inset-bottom, 0px) + 16px);
+    display: none;
+  }
+  #gbComposer {
+    background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 14px; padding: 12px;
+    display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px;
+  }
+  #gbText {
+    background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 10px; color: #fff; font-size: 1rem; padding: 10px;
+    resize: none; outline: none; font-family: inherit;
+  }
+  #gbText:focus { border-color: var(--pink); }
+  .gbRow { display: flex; align-items: center; gap: 10px; }
+  .gbAttach {
+    background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.25);
+    border-radius: 999px; padding: 8px 14px; font-size: 0.9rem; cursor: pointer;
+    white-space: nowrap;
+  }
+  #gbFileName { color: #9f8cc4; font-size: 0.8rem; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #gbSendBtn { margin-left: auto; padding: 10px 22px; }
+  #gbStatus { color: #9f8cc4; font-size: 0.85rem; min-height: 1.1em; }
+  .gbCard {
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 14px; padding: 12px; margin-bottom: 12px;
+  }
+  .gbMeta { display: flex; justify-content: space-between; gap: 10px; color: #9f8cc4; font-size: 0.78rem; margin-bottom: 6px; }
+  .gbName { color: #fff; font-weight: 700; font-size: 0.95rem; }
+  .gbCard p { color: #e9e2f5; font-size: 1rem; white-space: pre-wrap; word-break: break-word; }
+  .gbCard img, .gbCard video {
+    width: 100%; border-radius: 10px; margin-top: 8px;
+    max-height: 60vh; object-fit: contain; background: #000;
+  }
+  #gbEmpty { text-align: center; color: #9f8cc4; padding: 30px 10px; }
+
   /* Leerzustand der Gaeste-Galerie: fette Statement-Typo ueber den Screen */
   #guestEmpty {
     grid-column: 1/-1;
@@ -432,7 +480,24 @@
       <h2 id="guestHi">🖼️ Galerie</h2>
       <span id="guestCount"></span>
     </div>
+    <div id="guestTabs">
+      <button class="gtab sel" data-tab="fotos">Fotos</button>
+      <button class="gtab" data-tab="gb">💬 Gästebuch</button>
+    </div>
     <div id="guestGrid"><div id="guestEmpty">Es wird Zeit für das erste Foto, auf zur Fotobox</div></div>
+    <div id="gbPanel">
+      <div id="gbComposer">
+        <textarea id="gbText" rows="3" maxlength="2000" placeholder="Deine Nachricht an Sabrina …"></textarea>
+        <div class="gbRow">
+          <label class="gbAttach" for="gbFile">📎 Foto/Video</label>
+          <input id="gbFile" type="file" accept="image/*,video/*" style="display:none">
+          <span id="gbFileName"></span>
+          <button class="actBtn primary" id="gbSendBtn">Senden</button>
+        </div>
+        <div id="gbStatus"></div>
+      </div>
+      <div id="gbFeed"><div id="gbEmpty">Noch keine Einträge – sei die/der Erste! 💬</div></div>
+    </div>
   </div>
 </div>
 
@@ -1593,6 +1658,172 @@
       window.open(url, "_blank");
     }).catch(function () {
       window.open(url, "_blank");
+    });
+  });
+
+  // ---------- Gaestebuch (Text + Foto/Video, fuer alle sichtbar) ----------
+  var GB_POLL_MS = 20000;
+  var gbTimer = null, gbFile = null, gbBusy = false, gbLastJson = "";
+  var GB_REST = SUPA_URL + "/rest/v1/fotobox_gaestebuch";
+  var GB_EXT = {
+    "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/heic": "heic",
+    "video/mp4": "mp4", "video/quicktime": "mov", "video/webm": "webm"
+  };
+
+  function restHeaders() {
+    return {
+      "apikey": SUPA_KEY,
+      "Authorization": "Bearer " + SUPA_KEY,
+      "Content-Type": "application/json"
+    };
+  }
+
+  document.querySelectorAll(".gtab").forEach(function (t) {
+    t.addEventListener("click", function () {
+      document.querySelectorAll(".gtab").forEach(function (x) { x.classList.remove("sel"); });
+      t.classList.add("sel");
+      var gb = t.getAttribute("data-tab") === "gb";
+      $("guestGrid").style.display = gb ? "none" : "grid";
+      $("gbPanel").style.display = gb ? "block" : "none";
+      if (gb) {
+        gbLoad();
+        if (!gbTimer) gbTimer = setInterval(gbLoad, GB_POLL_MS);
+      }
+    });
+  });
+
+  function gbMediaUrl(path) {
+    return SUPA_URL + "/storage/v1/object/public/" + SUPA_BUCKET + "/" + path;
+  }
+
+  function gbRender(rows) {
+    var feed = $("gbFeed");
+    feed.innerHTML = "";
+    if (!rows.length) {
+      feed.innerHTML = '<div id="gbEmpty">Noch keine Einträge – sei die/der Erste! 💬</div>';
+      return;
+    }
+    rows.forEach(function (r) {
+      var card = document.createElement("div");
+      card.className = "gbCard";
+      var meta = document.createElement("div");
+      meta.className = "gbMeta";
+      var name = document.createElement("span");
+      name.className = "gbName";
+      name.textContent = r.name || "Gast";
+      var time = document.createElement("span");
+      time.textContent = r.created_at ? new Date(r.created_at).toLocaleString("de-DE") : "";
+      meta.appendChild(name);
+      meta.appendChild(time);
+      card.appendChild(meta);
+      if (r.message) {
+        var p = document.createElement("p");
+        p.textContent = r.message;
+        card.appendChild(p);
+      }
+      if (r.media_path && r.media_type === "image") {
+        var img = document.createElement("img");
+        img.loading = "lazy";
+        img.src = gbMediaUrl(r.media_path);
+        card.appendChild(img);
+      } else if (r.media_path && r.media_type === "video") {
+        var vid = document.createElement("video");
+        vid.controls = true;
+        vid.playsInline = true;
+        vid.preload = "metadata";
+        vid.src = gbMediaUrl(r.media_path);
+        card.appendChild(vid);
+      }
+      feed.appendChild(card);
+    });
+  }
+
+  function gbLoad() {
+    fetch(GB_REST + "?event_slug=eq." + encodeURIComponent(gSlug) + "&order=created_at.desc&limit=200", {
+      headers: restHeaders()
+    }).then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    }).then(function (rows) {
+      var j = JSON.stringify(rows);
+      if (j === gbLastJson) return; // nichts Neues -> Feed nicht neu bauen
+      gbLastJson = j;
+      gbRender(rows);
+    }).catch(function () { /* naechster Poll versucht es wieder */ });
+  }
+
+  $("gbFile").addEventListener("change", function () {
+    gbFile = this.files && this.files[0] ? this.files[0] : null;
+    $("gbFileName").textContent = gbFile ? gbFile.name : "";
+  });
+
+  $("gbSendBtn").addEventListener("click", function () {
+    if (gbBusy) return;
+    var msg = ($("gbText").value || "").trim();
+    if (!msg && !gbFile) {
+      $("gbStatus").textContent = "Schreib eine Nachricht oder häng ein Foto/Video an.";
+      return;
+    }
+    var mediaType = null;
+    if (gbFile) {
+      if (gbFile.type.indexOf("image/") === 0) mediaType = "image";
+      else if (gbFile.type.indexOf("video/") === 0) mediaType = "video";
+      else { $("gbStatus").textContent = "Nur Fotos oder Videos möglich."; return; }
+      if (gbFile.size > 200 * 1048576) {
+        $("gbStatus").textContent = "Datei zu groß (max. 200 MB).";
+        return;
+      }
+    }
+    var gName = "Gast";
+    try { gName = localStorage.getItem("fotobox_gast_name") || "Gast"; } catch (e) {}
+    gbBusy = true;
+    $("gbSendBtn").disabled = true;
+    $("gbStatus").textContent = gbFile ? "Lade " + (mediaType === "video" ? "Video" : "Foto") + " hoch …" : "Sende …";
+
+    var mediaPath = null;
+    var upload = Promise.resolve();
+    if (gbFile) {
+      var ext = GB_EXT[gbFile.type] || (gbFile.name.split(".").pop() || "bin").toLowerCase();
+      mediaPath = gSlug + "/gb/" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + "." + ext;
+      upload = fetch(SUPA_URL + "/storage/v1/object/" + SUPA_BUCKET + "/" + mediaPath, {
+        method: "POST",
+        headers: {
+          "apikey": SUPA_KEY,
+          "Authorization": "Bearer " + SUPA_KEY,
+          "Content-Type": gbFile.type || "application/octet-stream"
+        },
+        body: gbFile
+      }).then(function (res) {
+        if (!res.ok) throw new Error("Upload fehlgeschlagen (HTTP " + res.status + ")");
+      });
+    }
+
+    upload.then(function () {
+      return fetch(GB_REST, {
+        method: "POST",
+        headers: Object.assign(restHeaders(), { "Prefer": "return=minimal" }),
+        body: JSON.stringify({
+          event_slug: gSlug,
+          name: gName,
+          message: msg || null,
+          media_path: mediaPath,
+          media_type: mediaType
+        })
+      });
+    }).then(function (res) {
+      if (!res.ok) throw new Error("Speichern fehlgeschlagen (HTTP " + res.status + ")");
+      $("gbText").value = "";
+      $("gbFile").value = "";
+      gbFile = null;
+      $("gbFileName").textContent = "";
+      $("gbStatus").textContent = "Eintrag gespeichert 🎉";
+      gbLastJson = "";
+      gbLoad();
+    }).catch(function (err) {
+      $("gbStatus").textContent = "Fehler: " + err.message + " – nochmal versuchen?";
+    }).then(function () {
+      gbBusy = false;
+      $("gbSendBtn").disabled = false;
     });
   });
 
