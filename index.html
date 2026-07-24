@@ -338,6 +338,16 @@
   .avatarHint { color: #cbb8e8; font-size: 0.8rem; margin-top: -14px; }
   #onbStatus { color: #ffd6e4; font-size: 0.85rem; min-height: 1.1em; }
 
+  /* Eigener Avatar im Galerie-Kopf (tippen = aendern) */
+  #myAvatar {
+    width: 40px; height: 40px; border-radius: 50%; flex: none;
+    border: 2px solid var(--pink); background: rgba(255,255,255,0.08);
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden; cursor: pointer;
+  }
+  #myAvatar img { width: 100%; height: 100%; object-fit: cover; display: none; }
+  #myAvatar #myAvatarCam { font-size: 1rem; }
+
   /* Avatar-Leiste (Wer ist eingecheckt) */
   .avStrip {
     display: flex; gap: 14px; overflow-x: auto; -webkit-overflow-scrolling: touch;
@@ -430,10 +440,10 @@
   }
   #gbEmpty { text-align: center; color: #9f8cc4; padding: 30px 10px; }
 
-  /* Leerzustand der Gaeste-Galerie: fette Statement-Typo ueber den Screen */
-  #guestEmpty {
+  /* Leere Galerie (Gaeste, Gastgeberin, iPad): fette Statement-Typo */
+  .bigEmpty {
     grid-column: 1/-1;
-    min-height: calc(100vh - 140px);
+    min-height: min(70vh, calc(100vh - 140px));
     display: flex; align-items: center;
     font-family: "Inter", -apple-system, sans-serif; font-weight: 700;
     font-size: clamp(2.8rem, 14vw, 8rem);
@@ -491,7 +501,6 @@
   }
   .thumb { position: relative; border-radius: 10px; overflow: hidden; cursor: pointer; aspect-ratio: 3/4; background: #241238; }
   .thumb img { width: 100%; height: 100%; object-fit: cover; }
-  #emptyMsg { grid-column: 1/-1; text-align: center; color: #9f8cc4; padding: 60px 20px; font-size: 1.1rem; }
 </style>
 </head>
 <body>
@@ -536,7 +545,14 @@
   </div>
   <div id="guestGalleryWrap">
     <div id="guestHead">
-      <h2 id="guestHi">🖼️ Galerie</h2>
+      <div class="row" style="display:flex;align-items:center;gap:10px;min-width:0">
+        <label id="myAvatar" for="myAvatarFile" title="Avatar ändern">
+          <img id="myAvatarImg" alt="">
+          <span id="myAvatarCam">📷</span>
+        </label>
+        <input id="myAvatarFile" type="file" accept="image/*" capture="user" style="display:none">
+        <h2 id="guestHi">🖼️ Galerie</h2>
+      </div>
       <span id="guestCount"></span>
     </div>
     <div id="avatarStrip" class="avStrip"></div>
@@ -544,7 +560,7 @@
       <button class="gtab sel" data-tab="fotos">Fotos</button>
       <button class="gtab" data-tab="gb">💬 Gästebuch</button>
     </div>
-    <div id="guestGrid"><div id="guestEmpty">Es wird Zeit für das erste Foto, auf zur Fotobox</div></div>
+    <div id="guestGrid"><div class="bigEmpty">Es wird Zeit für das erste Foto, auf zur Fotobox</div></div>
     <div id="gbPanel">
       <div id="gbComposer">
         <textarea id="gbText" rows="3" maxlength="2000" placeholder="Deine Nachricht an Sabrina …"></textarea>
@@ -670,7 +686,7 @@
     <h2>🖼️ Galerie</h2>
     <button class="pill" id="galleryBack">← Zurück</button>
   </div>
-  <div id="galleryGrid"><div id="emptyMsg">Noch keine Fotos – ran an die Kamera! 🎉</div></div>
+  <div id="galleryGrid"><div class="bigEmpty">Es wird Zeit für das erste Foto, auf zur Fotobox</div></div>
 </div>
 
 <script>
@@ -1409,7 +1425,7 @@
     var grid = $("galleryGrid");
     grid.innerHTML = "";
     if (!photos.length) {
-      grid.innerHTML = '<div id="emptyMsg">Noch keine Fotos – ran an die Kamera! 🎉</div>';
+      grid.innerHTML = '<div class="bigEmpty">Es wird Zeit für das erste Foto, auf zur Fotobox</div>';
       return;
     }
     photos.forEach(function (p, idx) {
@@ -1717,7 +1733,61 @@
     loadAvatars("avatarStrip");
     if (!avTimer) avTimer = setInterval(function () { loadAvatars("avatarStrip"); }, 30000);
     fetchGuestCount();
+    loadMyAvatar(name);
   }
+
+  // ---------- Eigenen Avatar anzeigen & nachtraeglich aendern ----------
+  function showMyAvatar(path) {
+    var img = $("myAvatarImg");
+    if (path) {
+      img.src = SUPA_URL + "/storage/v1/object/public/" + SUPA_BUCKET + "/" + path + "?v=" + Date.now();
+      img.style.display = "block";
+      $("myAvatarCam").style.display = "none";
+    } else {
+      img.style.display = "none";
+      $("myAvatarCam").style.display = "";
+    }
+  }
+
+  function loadMyAvatar(name) {
+    fetch(SUPA_URL + "/rest/v1/fotobox_gaeste?event_slug=eq." + encodeURIComponent(gSlug) +
+          "&name=eq." + encodeURIComponent(name) + "&select=avatar_path&order=created_at.desc&limit=1",
+          { headers: restHeaders() })
+      .then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (rows) { showMyAvatar(rows[0] && rows[0].avatar_path); })
+      .catch(function () {});
+  }
+
+  $("myAvatarFile").addEventListener("change", function () {
+    var file = this.files && this.files[0] ? this.files[0] : null;
+    this.value = "";
+    if (!file) return;
+    var name = "Gast";
+    try { name = localStorage.getItem("fotobox_gast_name") || "Gast"; } catch (e) {}
+    resizeAvatar(file).then(function (blob) {
+      var path = gSlug + "/avatare/" + Date.now() + "-" + Math.random().toString(36).slice(2, 8) + ".jpg";
+      return fetch(SUPA_URL + "/storage/v1/object/" + SUPA_BUCKET + "/" + path, {
+        method: "POST",
+        headers: { "apikey": SUPA_KEY, "Authorization": "Bearer " + SUPA_KEY, "Content-Type": "image/jpeg" },
+        body: blob
+      }).then(function (res) {
+        if (!res.ok) throw new Error("Upload fehlgeschlagen");
+        // Avatar am eigenen Check-in-Eintrag setzen (nur avatar_path erlaubt)
+        return fetch(SUPA_URL + "/rest/v1/fotobox_gaeste?event_slug=eq." + encodeURIComponent(gSlug) +
+                     "&name=eq." + encodeURIComponent(name), {
+          method: "PATCH",
+          headers: Object.assign(restHeaders(), { "Prefer": "return=minimal" }),
+          body: JSON.stringify({ avatar_path: path })
+        });
+      }).then(function (res) {
+        if (!res.ok) throw new Error("Speichern fehlgeschlagen");
+        showMyAvatar(path);
+        loadAvatars("avatarStrip");
+      });
+    }).catch(function () {
+      alert("Avatar konnte nicht gespeichert werden – bitte nochmal versuchen.");
+    });
+  });
 
   function guestPoll() {
     listEventPhotos(gSlug, "desc").then(function (urls) {
@@ -1737,9 +1807,7 @@
     var grid = $(containerId);
     grid.innerHTML = "";
     if (!urls.length) {
-      grid.innerHTML = containerId === "guestGrid"
-        ? '<div id="guestEmpty">Es wird Zeit für das erste Foto, auf zur Fotobox</div>'
-        : '<div style="color:#9f8cc4">Noch keine Fotos.</div>';
+      grid.innerHTML = '<div class="bigEmpty">Es wird Zeit für das erste Foto, auf zur Fotobox</div>';
       return;
     }
     urls.forEach(function (u) {
