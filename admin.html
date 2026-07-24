@@ -23,7 +23,20 @@
     color: var(--txt); font-size: 0.9rem; padding: 8px 12px; outline: none;
   }
   input:focus { border-color: var(--acc); }
-  #pw { width: 170px; }
+  /* Login-Gate */
+  #loginView {
+    min-height: calc(100vh - 48px);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .loginCard {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 14px;
+    padding: 32px 28px; width: min(92vw, 360px);
+    display: flex; flex-direction: column; gap: 14px; text-align: center;
+  }
+  .loginCard input { width: 100%; text-align: center; font-size: 1rem; padding: 11px 12px; }
+  .loginCard button { width: 100%; padding: 11px; font-size: 0.95rem; }
+  #loginErr { color: var(--red); font-size: 0.85rem; min-height: 1.2em; }
+  #logoutBtn { font-size: 0.8rem; padding: 6px 12px; color: var(--mut); }
   .panel {
     background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
     padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; margin-bottom: 14px;
@@ -68,12 +81,23 @@
 </style>
 </head>
 <body>
+<div id="loginView">
+  <div class="loginCard">
+    <h1>Fotobox Admin</h1>
+    <p class="sub">Bitte mit dem Admin-Passwort anmelden.</p>
+    <input id="pw" type="password" placeholder="Admin-Passwort" autocomplete="current-password">
+    <button class="primary" id="loginBtn">Anmelden</button>
+    <div id="loginErr"></div>
+  </div>
+</div>
+
+<div id="toolView" style="display:none">
 <header>
   <div>
     <h1>Fotobox Admin</h1>
     <p class="sub">Löschen ist endgültig (inkl. Druckkarte). Archivieren verschiebt nach archiv/ — raus aus Galerie &amp; Slideshow, nichts geht verloren.</p>
   </div>
-  <input id="pw" type="password" placeholder="Admin-Passwort" autocomplete="current-password">
+  <button id="logoutBtn">Abmelden</button>
 </header>
 
 <div class="panel">
@@ -95,8 +119,9 @@
   </div>
 </div>
 
-<div id="status">Passwort eingeben und „Laden". Archiv ansehen: Event-Feld auf archiv/&lt;name&gt; stellen.</div>
+<div id="status">Archiv ansehen: Event-Feld auf archiv/&lt;name&gt; stellen.</div>
 <div id="grid"></div>
+</div><!-- /toolView -->
 
 <script>
 (function () {
@@ -108,11 +133,57 @@
 
   var $ = function (id) { return document.getElementById(id); };
   var photos = [];   // { path, url, ts, sel }
+  var currentPw = ""; // gesetzt nach erfolgreichem Login
 
-  try {
-    var savedPw = localStorage.getItem("fotobox_admin_pw");
-    if (savedPw) $("pw").value = savedPw;
-  } catch (e) {}
+  // ---------- Login-Gate ----------
+  function tryLogin(pw, silent) {
+    pw = (pw || "").trim();
+    if (!pw) {
+      if (!silent) $("loginErr").textContent = "Bitte Passwort eingeben.";
+      return;
+    }
+    $("loginErr").textContent = "";
+    $("loginBtn").disabled = true;
+    $("loginBtn").textContent = "Prüfe …";
+    fetch(FN, {
+      method: "POST",
+      headers: { "apikey": ANON, "Authorization": "Bearer " + ANON, "Content-Type": "application/json" },
+      body: JSON.stringify({ password: pw, action: "check" })
+    }).then(function (r) {
+      return r.json().then(function (j) { return { ok: r.ok, j: j }; });
+    }).then(function (res) {
+      $("loginBtn").disabled = false;
+      $("loginBtn").textContent = "Anmelden";
+      if (res.ok) {
+        currentPw = pw;
+        try { localStorage.setItem("fotobox_admin_pw", pw); } catch (e) {}
+        $("loginView").style.display = "none";
+        $("toolView").style.display = "block";
+        loadPhotos();
+      } else {
+        try { localStorage.removeItem("fotobox_admin_pw"); } catch (e) {}
+        $("pw").value = "";
+        if (!silent) {
+          $("loginErr").textContent = res.j && res.j.error === "falsches Passwort"
+            ? "Falsches Passwort."
+            : "Fehler: " + ((res.j && res.j.error) || "unbekannt");
+        }
+      }
+    }).catch(function () {
+      $("loginBtn").disabled = false;
+      $("loginBtn").textContent = "Anmelden";
+      $("loginErr").textContent = "Keine Verbindung — bitte erneut versuchen.";
+    });
+  }
+
+  $("loginBtn").addEventListener("click", function () { tryLogin($("pw").value, false); });
+  $("pw").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") tryLogin($("pw").value, false);
+  });
+  $("logoutBtn").addEventListener("click", function () {
+    try { localStorage.removeItem("fotobox_admin_pw"); } catch (e) {}
+    location.reload();
+  });
 
   function status(msg) { $("status").textContent = msg; }
 
@@ -180,8 +251,7 @@
   }
 
   function adminCall(payload) {
-    try { localStorage.setItem("fotobox_admin_pw", $("pw").value); } catch (e) {}
-    payload.password = $("pw").value;
+    payload.password = currentPw;
     return fetch(FN, {
       method: "POST",
       headers: { "apikey": ANON, "Authorization": "Bearer " + ANON, "Content-Type": "application/json" },
@@ -354,8 +424,11 @@
       .catch(function (e) { status("Fehler: " + e.message); });
   });
 
-  // Passwort schon gespeichert? Dann direkt das Standard-Event laden.
-  if ($("pw").value) loadPhotos();
+  // Boot: gespeichertes Passwort still validieren — gueltig -> direkt ins
+  // Tool, ungueltig/fehlend -> Login-Gate.
+  var savedPw = null;
+  try { savedPw = localStorage.getItem("fotobox_admin_pw"); } catch (e) {}
+  if (savedPw) tryLogin(savedPw, true);
 })();
 </script>
 </body>
