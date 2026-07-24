@@ -24,7 +24,7 @@ Sekunden und werden in der Rotation vorgezogen. Beenden mit ✕ oder Escape.
 ## Gäste-Onboarding + Handy-Galerie
 
 Gäste scannen den Event-QR und landen auf
-`https://sabrina.supermatt.agency/#gast=sabrinas-40-geburtstag&title=Sabrinas%2040.%20Geburtstag`:
+`https://sabrina.supermatt.agency/#gast=sabrinas-geburtstag&title=Sabrinas%20Geburtstag`:
 kurzes Onboarding (Name → Tabelle `fotobox_gaeste` in Supabase, dort siehst
 du, wer dabei ist), danach eine Live-Galerie aller Event-Fotos (neueste
 zuerst, aktualisiert alle 12 s, Teilen/Sichern per iOS-Share). Die Galerie
