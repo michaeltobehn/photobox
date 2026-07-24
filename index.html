@@ -1689,7 +1689,7 @@
   }
 
   // ---------- Gastgeberin-Ansicht ----------
-  var hostTimer = null, hostUrlsJson = "";
+  var hostTimer = null, hostUrlsJson = null; // null = noch nie gerendert
 
   function hostRefresh() {
     gbLoad("hostGb");
